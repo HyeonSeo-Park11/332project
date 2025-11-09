@@ -10,6 +10,8 @@ import global.ConnectionManager
 import utils.PathUtils
 
 class ShuffleManager(implicit ec: ExecutionContext) {
+    val maxTries = 10
+
 	def start(shufflePlans: Map[String, Seq[String]]): Future[Map[String, Seq[String]]] = async {  // TODO: make input as optional, if none, restore
         PathUtils.createDirectoryIfNotExists(s"${WorkerState.getOutputDir.get}/${WorkerState.shuffleDirName}")
         val workerFutures = shufflePlans.map {
@@ -23,7 +25,7 @@ class ShuffleManager(implicit ec: ExecutionContext) {
         fileList match {
             case Nil => ()
             case head :: tail => {
-                await { processFile(workerIp, head) }
+                await { processFileWithRetry(workerIp, head) }
                 await { processFilesSequentially(workerIp, tail) }
             }
         }
@@ -38,4 +40,13 @@ class ShuffleManager(implicit ec: ExecutionContext) {
         println(s"[$workerIp, $filename] RECEIVE")
     }
 
+    private def processFileWithRetry(workerIp: String, filename: String, tries: Int = 1): Future[Unit] = {
+        processFile(workerIp, filename).recoverWith {
+            case _ if tries < maxTries => {  // 방금 시도한게 n번째 시도이면 더이상 시도하지 않음
+                println(s"Retrying [$workerIp, $filename], attempt #$tries")
+                blocking { Thread.sleep(math.pow(2, tries).toLong * 1000) }
+                processFileWithRetry(workerIp, filename, tries + 1)
+            }
+        }
+    }
 }
