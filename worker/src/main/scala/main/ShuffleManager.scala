@@ -48,12 +48,14 @@ class ShuffleManager(implicit ec: ExecutionContext) {
         println(s"[$workerIp, $filename] request")
         stub.downloadFile(DownloadRequest(filename = filename), new StreamObserver[DownloadResponse] {
             override def onNext(response: DownloadResponse): Unit = {
-                blocking {
+                WorkerState.diskIoLock.synchronized {
+                    blocking {
                         val writeBuffer = response.data.asReadOnlyByteBuffer()
                         while (writeBuffer.hasRemaining) {
                             fileChannel.write(writeBuffer)
                         }
                     }
+                }
             }
 
             override def onError(t: Throwable): Unit = promise.failure(t)
