@@ -41,6 +41,7 @@ object Main extends App {
 
   val server = ServerBuilder
     .forPort(0)
+    .maxInboundMessageSize(ConnectionManager.maxGrpcMessageSize)
     .addService(WorkerServiceGrpc.bindService(new WorkerServiceImpl(), ec))
     .addService(ShuffleGrpc.bindService(new ShuffleServiceImpl(), ec))
     .build()
