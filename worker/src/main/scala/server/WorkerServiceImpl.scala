@@ -65,4 +65,16 @@ class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc
     FileListAck(success = true)
   }
 
+  override def startShuffle(request: StartShuffleCommand): Future[StartShuffleAck] = {
+    if (!Worker.hasReceivedShuffleCommand) {
+      println(s"Received shuffle start command. Reason: ${request.reason}")
+    }
+    /*
+    By marking shuffleStartPromise to success, 
+    unblock any waiting synchronization manager.
+    */ 
+    Worker.markShuffleStarted()
+
+    Future.successful(StartShuffleAck(success = true))
+  }
 }

@@ -73,7 +73,17 @@ object WorkerState {
     incomingFilePlans += senderIp -> (existing ++ files)
   }
 
-  def getIncomingFilePlans: Map[(String, Int), Seq[String]] = this.synchronized {
+  def getIncomingFilePlans: Map[String, Seq[String]] = this.synchronized {
     incomingFilePlans
   }
+
+  def markShuffleStarted(): Unit = this.synchronized {
+    if (!shuffleStartPromise.isCompleted) {
+      shuffleStartPromise.success(())
+    }
+  }
+
+  def waitForShuffleCommand: Future[Unit] = shuffleStartPromise.future
+
+  def hasReceivedShuffleCommand: Boolean = shuffleStartPromise.isCompleted
 }
