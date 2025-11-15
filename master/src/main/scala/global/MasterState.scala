@@ -11,6 +11,8 @@ object MasterState {
   private var registeredWorkers = Map[String, WorkerInfo]()
   private var samples = Map[String, Seq[Key]]()  // workerIp -> sampled keys
   private var ranges = Map[(String, Int), Record]()  // (start, end) for each worker
+  private var syncCompletedWorkers = Set[String]()
+  private var shuffleStarted = false
 
   def setWorkersNum(num: Int): Unit = this.synchronized {
     workersNum = num
@@ -87,4 +89,25 @@ object MasterState {
   def getRanges: Map[(String, Int), Record] = this.synchronized { ranges }
 
   def isRangesReady: Boolean = this.synchronized { ranges.nonEmpty }
+
+  /*
+  Start timing for shuffle phase is synchronized 
+  since markSyncCompleted blocks to ensure all workers have reported completion
+  before starting the shuffle phase.
+  */
+  def markSyncCompleted(workerIp: String): (Boolean, Int, Int) = this.synchronized {
+    if (!registeredWorkers.contains(workerIp)) {
+      println(s"Ignoring sync completion from unknown worker $workerIp")
+      return (false, syncCompletedWorkers.size, registeredWorkers.size)
+    }
+
+    syncCompletedWorkers += workerIp
+    (syncCompletedWorkers.size == registeredWorkers.size, syncCompletedWorkers.size, registeredWorkers.size)
+  }
+
+  def markShuffleStarted(): Unit = this.synchronized {
+    shuffleStarted = true
+  }
+
+  def hasShuffleStarted: Boolean = this.synchronized { shuffleStarted }
 }
