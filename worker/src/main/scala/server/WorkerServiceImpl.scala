@@ -1,11 +1,12 @@
 package server
 
 import scala.concurrent.{ExecutionContext, Future}
-import worker.WorkerService.{WorkerServiceGrpc, WorkersRangeAssignment, RangeAssignment, WorkerNetworkInfo, AssignRangesResponse, WorkerRangeAssignment}
+import worker.WorkerService.{WorkerServiceGrpc, WorkersRangeAssignment, RangeAssignment, WorkerNetworkInfo, AssignRangesResponse, WorkerRangeAssignment, FileListMessage, FileListAck, StartShuffleCommand, StartShuffleAck}
 import io.grpc.{Status, StatusException}
 import java.math.BigInteger
 import global.WorkerState
 import global.ConnectionManager
+import worker.sync.SynchronizationManager
 
 class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc.WorkerService {
   override def assignRanges(request: WorkersRangeAssignment): Future[AssignRangesResponse] = {
@@ -35,8 +36,33 @@ class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc
         println(s"Assigned range to worker $ip:$port => [${startInt.toString(16)}, ${endInt.toString(16)})")
     }
 
-    Future.successful(
+    val response = Future.successful(
       AssignRangesResponse(success = true)
     )
+
+    SynchronizationManager.runSyncPhase().recover {
+      case e: Exception =>
+        println(s"[Sync] Synchronization phase failed: ${e.getMessage}")
+    }
+
+    response
   }
+
+  /*
+  Receive file metadata list from a peer worker.
+  Store the incoming file plans in the Worker singleton for later processing.
+  */
+  override def deliverFileList(request: FileListMessage): Future[FileListAck] = Future {
+    val senderIp = request.senderIp    
+    val files = request.files.map(_.fileName)
+    Worker.addIncomingFilePlan(senderIp, files)
+
+    // for debugging
+    val fileNames = files.mkString(", ")
+    println(s"[Sync][RecvList] $senderIp -> files: [$fileNames]")
+    println(s"Received ${files.size} file descriptions from $senderIp")
+    
+    FileListAck(success = true)
+  }
+
 }

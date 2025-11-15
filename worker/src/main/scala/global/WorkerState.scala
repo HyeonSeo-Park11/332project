@@ -2,6 +2,7 @@ package global
 
 import scala.concurrent.{Future, Promise}
 import common.data.Data.Record
+import com.google.protobuf.ByteString
 
 // Worker Singleton
 object WorkerState {
@@ -15,6 +16,9 @@ object WorkerState {
   private var outputDir: Option[String] = None
   private var assignedRange: Option[Map[(String, Int), Record]] = None
   private val assignPromise = Promise[Unit]()
+  private var assignedFiles: Map[(String, Int), List[String]] = Map.empty
+  private var incomingFilePlans = Map[String, Seq[String]]()
+  private val shuffleStartPromise: Promise[Unit] = Promise[Unit]()
 
   def setMasterAddr(ip: String, port: Int): Unit = this.synchronized {
     masterIp = Some(ip)
@@ -55,5 +59,21 @@ object WorkerState {
 
   def waitForAssignment(): Future[Unit] = {
     assignPromise.future
+  }
+  def setAssignedFiles(files: Map[(String, Int), List[String]]): Unit = this.synchronized {
+    assignedFiles = files
+  }
+
+  def getAssignedFiles: Map[(String, Int), List[String]] = this.synchronized {
+    assignedFiles
+  }
+
+  def addIncomingFilePlan(senderIp: String, files: Seq[String]): Unit = this.synchronized {
+    val existing = incomingFilePlans.getOrElse(senderIp, Seq.empty)
+    incomingFilePlans += senderIp -> (existing ++ files)
+  }
+
+  def getIncomingFilePlans: Map[(String, Int), Seq[String]] = this.synchronized {
+    incomingFilePlans
   }
 }
