@@ -10,28 +10,6 @@ import global.ConnectionManager
 class MasterManager(implicit ec: ExecutionContext) {
   private val stub = MasterServiceGrpc.stub(ConnectionManager.getMasterChannel())
 
-  def registerWorker(ip: String, port: Int, ramMb: Long): Unit = {
-    val request = WorkerInfo(
-      ip = ip,
-      port = port,
-      ramMb = ramMb
-    )
-
-    val responseFuture = stub.registerWorker(request)
-    
-    try {
-      val response = Await.result(responseFuture, 10.seconds)
-      if (!response.success) {
-        println(s"Failed to connect to master")
-        sys.exit(1)
-      }
-    } catch {
-      case e: Exception =>
-        println(s"Error registering with master: ${e.getMessage}")
-        sys.exit(1)
-    }
-  }
-
   def sampling(workerIp: String, keys: Array[ByteString]): Boolean = {
     val request = SampleData(
       workerIp = workerIp,

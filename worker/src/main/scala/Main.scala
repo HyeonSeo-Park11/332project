@@ -8,6 +8,7 @@ import worker.WorkerService.WorkerServiceGrpc
 import scala.concurrent.Future
 import common.utils.SystemUtils
 import global.ConnectionManager
+import main.RegisterManager
 
 object Main extends App {
   implicit val ec: ExecutionContext = ExecutionContext.global
@@ -43,17 +44,16 @@ object Main extends App {
 
   server.start()
 
+  ConnectionManager.initMasterChannel(masterIp, masterPort)
+
+  new RegisterManager().start(server.getPort)
+
   val workerIp = SystemUtils.getLocalIp.getOrElse {
     println("Failed to get local IP address")
     sys.exit(1)
   }
-  val ramMb = SystemUtils.getRamMb
-  val port = server.getPort
-
-  ConnectionManager.initMasterChannel(masterIp, masterPort)
 
   val client = new MasterManager()
-  client.registerWorker(workerIp, port, ramMb)
 
   // Start sampling in a separate thread
   val samplingPhase = Future {
