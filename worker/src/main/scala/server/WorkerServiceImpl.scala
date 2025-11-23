@@ -5,6 +5,7 @@ import worker.WorkerService.{WorkerServiceGrpc, WorkersRangeAssignment, RangeAss
 import io.grpc.{Status, StatusException}
 import java.math.BigInteger
 import global.WorkerState
+import global.ConnectionManager
 
 class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc.WorkerService {
   override def assignRanges(request: WorkersRangeAssignment): Future[AssignRangesResponse] = {
@@ -23,6 +24,9 @@ class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc
 
     // Store the assigned range in the Worker singleton
     WorkerState.setAssignedRange(workersRangeAssignment)
+
+    ConnectionManager.initWorkerChannels(workersRangeAssignment.keys.toSeq)
+
     workersRangeAssignment.foreach {
       // Print assigned ranges for debugging
       case ((ip, port), (start, end)) =>
