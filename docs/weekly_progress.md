@@ -125,3 +125,37 @@
 - JongWon Lee : Finish implementing Final Merge, State Restoration
 - HyeonSeo Park : Finish implementing State Restoration
 - MinWoo Kim : Finish implementing State Restoration
+
+## Week6 Progress Report
+
+**Progress in the week** 
+
+- Previous goal was not met because, by professor’s comments on presentation, we decide to integrate our code first, check correctness of code, and then implement state restoration.
+- However, there was some challenges: 
+1. a lot of resource was needed for code reviewing
+2. not that easy to merge code clearly, which seemed to independent but actually not that much
+3. all team member got lack of time this week, bothered with other subject’s assignment, exam, paying the price of time spilled on week 5 and progress presentation preparation
+- So, what we did:
+  - make more progress on current reviewing pull requests
+    - https://github.com/kmw14641/332project/pull/20
+      - fix edge case that sampling is not completed when disk base merge sort is completed
+      - supplement error handlings on disk base merge sort
+    - https://github.com/kmw14641/332project/pull/23
+      - fix problem that shuffle stream did not wait current chunk complete (only waited current file complete)
+    - https://github.com/kmw14641/332project/pull/21
+      - simplifying or removing unused logic
+  - refactoring works which helps integration of code
+    - add ConnectionManager, which is responsible for gRPC channel
+      - https://github.com/kmw14641/332project/pull/26
+    - divide merged logics to seperated Managers, which are responsible for same phase
+      - https://github.com/kmw14641/332project/pull/27
+
+**Goal of the next week:**
+- Merge pull requests (not that trivial)
+- Check correctness of distributed sorting without fault tolerance
+- Implement state restoration
+  
+**Goal of the next week for each individual member**
+- JongWon Lee : merge pull request, implement final merge, termination logic
+- HyeonSeo Park : merge pull request, check correctness of program
+- MinWoo Kim : merge pull request, implement state restoration
