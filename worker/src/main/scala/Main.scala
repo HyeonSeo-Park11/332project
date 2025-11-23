@@ -1,7 +1,7 @@
 import io.grpc.ServerBuilder
 import scala.concurrent.ExecutionContext
 import utils.{WorkerOptionUtils, PathUtils, SamplingUtils}
-import client.MasterClient
+import main.MasterManager
 import server.{WorkerServiceImpl}
 import global.WorkerState
 import worker.WorkerService.WorkerServiceGrpc
@@ -49,7 +49,7 @@ object Main extends App {
   val ramMb = SystemUtils.getRamMb
   val port = server.getPort
 
-  val client = new MasterClient(masterIp, masterPort)
+  val client = new MasterManager(masterIp, masterPort)
   client.registerWorker(workerIp, port, ramMb)
 
   // Start sampling in a separate thread

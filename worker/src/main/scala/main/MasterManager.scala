@@ -1,4 +1,4 @@
-package client
+package main
 
 import io.grpc.{ManagedChannel, ManagedChannelBuilder}
 import scala.concurrent.duration._
@@ -6,7 +6,7 @@ import scala.concurrent.{Await, ExecutionContext}
 import master.MasterService.{MasterServiceGrpc, WorkerInfo, RegisterWorkerResponse, SampleData, SampleResponse}
 import com.google.protobuf.ByteString
 
-class MasterClient(host: String, port: Int)(implicit ec: ExecutionContext) {
+class MasterManager(host: String, port: Int)(implicit ec: ExecutionContext) {
   private val channel: ManagedChannel = ManagedChannelBuilder
     .forAddress(host, port)
     .usePlaintext()
