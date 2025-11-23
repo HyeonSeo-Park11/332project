@@ -1,7 +1,6 @@
 import io.grpc.ServerBuilder
 import scala.concurrent.ExecutionContext
 import utils.{WorkerOptionUtils, PathUtils, SamplingUtils}
-import main.MasterManager
 import server.{WorkerServiceImpl}
 import global.WorkerState
 import worker.WorkerService.WorkerServiceGrpc
@@ -9,6 +8,7 @@ import scala.concurrent.Future
 import common.utils.SystemUtils
 import global.ConnectionManager
 import main.RegisterManager
+import main.SampleManager
 
 object Main extends App {
   implicit val ec: ExecutionContext = ExecutionContext.global
@@ -48,34 +48,7 @@ object Main extends App {
 
   new RegisterManager().start(server.getPort)
 
-  val workerIp = SystemUtils.getLocalIp.getOrElse {
-    println("Failed to get local IP address")
-    sys.exit(1)
-  }
-
-  val client = new MasterManager()
-
-  // Start sampling in a separate thread
-  val samplingPhase = Future {
-    try {
-      val samples = SamplingUtils.sampleFromInputs(inputDirs).getOrElse {
-        println("Warning: Sampling failed")
-        sys.exit(1)
-      }
-      
-      val success = client.sampling(workerIp, samples)
-      
-      if (success) {
-        println("Samples sent successfully. Waiting for range assignment...")
-      } else {
-        println("Failed to send samples to master")
-      }
-    } catch {
-      case e: Exception =>
-        println(s"Error during sampling: ${e.getMessage}")
-        e.printStackTrace()
-    }
-  }
+  new SampleManager().start()
 
   ConnectionManager.shutdownAllChannels()
 
