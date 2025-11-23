@@ -7,6 +7,7 @@ import global.WorkerState
 import worker.WorkerService.WorkerServiceGrpc
 import scala.concurrent.Future
 import common.utils.SystemUtils
+import global.ConnectionManager
 
 object Main extends App {
   implicit val ec: ExecutionContext = ExecutionContext.global
@@ -49,7 +50,9 @@ object Main extends App {
   val ramMb = SystemUtils.getRamMb
   val port = server.getPort
 
-  val client = new MasterManager(masterIp, masterPort)
+  ConnectionManager.initMasterChannel(masterIp, masterPort)
+
+  val client = new MasterManager()
   client.registerWorker(workerIp, port, ramMb)
 
   // Start sampling in a separate thread
@@ -73,6 +76,8 @@ object Main extends App {
         e.printStackTrace()
     }
   }
+
+  ConnectionManager.shutdownAllChannels()
 
   server.awaitTermination()
 }

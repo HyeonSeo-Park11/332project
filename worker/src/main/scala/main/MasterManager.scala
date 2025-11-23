@@ -5,14 +5,10 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext}
 import master.MasterService.{MasterServiceGrpc, WorkerInfo, RegisterWorkerResponse, SampleData, SampleResponse}
 import com.google.protobuf.ByteString
+import global.ConnectionManager
 
-class MasterManager(host: String, port: Int)(implicit ec: ExecutionContext) {
-  private val channel: ManagedChannel = ManagedChannelBuilder
-    .forAddress(host, port)
-    .usePlaintext()
-    .build()
-
-  private val stub = MasterServiceGrpc.stub(channel)
+class MasterManager(implicit ec: ExecutionContext) {
+  private val stub = MasterServiceGrpc.stub(ConnectionManager.getMasterChannel())
 
   def registerWorker(ip: String, port: Int, ramMb: Long): Unit = {
     val request = WorkerInfo(
@@ -53,9 +49,5 @@ class MasterManager(host: String, port: Int)(implicit ec: ExecutionContext) {
         e.printStackTrace()
         false
     }
-  }
-
-  def shutdown(): Unit = {
-    channel.shutdown()
   }
 }
