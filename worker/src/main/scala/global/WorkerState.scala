@@ -7,6 +7,7 @@ import scala.concurrent.{Future, Promise}
 object WorkerState {
   val memSortDirName = "sorted"
   val fileMergeDirName = "merged"
+  val labelingDirName = "labeled"
 
   private var masterIp: Option[String] = None
   private var masterPort: Option[Int] = None
