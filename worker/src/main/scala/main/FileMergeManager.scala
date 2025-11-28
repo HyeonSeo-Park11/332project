@@ -8,8 +8,6 @@ import scala.jdk.CollectionConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.async.Async.{async, await}
 import utils.{PathUtils, RecordIOUtils}
-import utils.RecordIOUtils.{RECORD_SIZE, KEY_SIZE, VALUE_SIZE}
-import com.google.protobuf.ByteString
 import scala.annotation.tailrec
 import common.data.Data.{Record, getRecordOrdering, RECORD_SIZE}
 import java.util.NoSuchElementException

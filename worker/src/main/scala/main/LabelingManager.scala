@@ -6,7 +6,6 @@ import java.nio.ByteBuffer
 import com.google.protobuf.ByteString
 import common.utils.SystemUtils
 import utils.RecordIOUtils
-import utils.RecordIOUtils.{RECORD_SIZE, KEY_SIZE, VALUE_SIZE}
 import scala.annotation.tailrec
 import utils.PathUtils
 import scala.concurrent.{ExecutionContext, Future}
@@ -34,8 +33,8 @@ class LabelingManager(sortedFiles: List[String], assignedRange: Map[(String, Int
     println(s"[FileAssignment] Starting file assignment with ${sortedFiles.size} sorted files")
     
     // Sort workers by start key
-    val comparator = ByteString.unsignedLexicographicalComparator
-    val sortedWorkers = assignedRange.toList.sortWith { case ((_, (a, _)), (_, (b, _))) => comparator.compare(a, b) < 0 }
+    implicit val cp = getRecordOrdering
+    val sortedWorkers = assignedRange.toList.sorted
     
     println(s"[FileAssignment] Worker ranges (sorted):")
     sortedWorkers.foreach { case ((ip, port), (start, end)) =>
@@ -49,15 +48,16 @@ class LabelingManager(sortedFiles: List[String], assignedRange: Map[(String, Int
     }
     
     val from = SystemUtils.getLocalIp.getOrElse(throw new IllegalStateException("Could not determine local IP address"))
+    val comparator = getKeyOrdering
     
     @tailrec
     def processFiles(
       workerId: (String, Int),
-      rangeStart: ByteString,
-      rangeEnd: ByteString,
-      files: List[(String, ByteString, ByteString)],
+      rangeStart: Key,
+      rangeEnd: Key,
+      files: List[(String, Key, Key)],
       assignments: Map[(String, Int), List[String]]
-    ): (List[(String, ByteString, ByteString)], Map[(String, Int), List[String]]) = {
+    ): (List[(String, Key, Key)], Map[(String, Int), List[String]]) = {
       files match {
         case Nil => (Nil, assignments)
         case (currentFile @ (filePath, fileStartKey, fileEndKey)) :: restFiles =>
@@ -152,10 +152,10 @@ class LabelingManager(sortedFiles: List[String], assignedRange: Map[(String, Int
    * Find the first index where key >= splitKey
    */
   private def findSplitIndex(
-    records: Array[(ByteString, ByteString)],
-    splitKey: ByteString
+    records: Array[Record],
+    splitKey: Key
   ): Int = {
-    val comparator = ByteString.unsignedLexicographicalComparator
+    val comparator = getKeyOrdering
     var left = 0
     var right = records.length
     
@@ -176,7 +176,7 @@ class LabelingManager(sortedFiles: List[String], assignedRange: Map[(String, Int
   /**
    * Get first and last key from a file
    */
-  private def getFirstAndLastKeyFromFile(filePath: String): (ByteString, ByteString) = {
+  private def getFirstAndLastKeyFromFile(filePath: String): Record = {
     val path = Paths.get(filePath)
     val channel = FileChannel.open(path, StandardOpenOption.READ)
     try {

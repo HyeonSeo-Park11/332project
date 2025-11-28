@@ -11,6 +11,7 @@ import scala.concurrent.{Future, ExecutionContext, Await, duration}
 import com.google.protobuf.ByteString
 import utils.PathUtils
 import common.utils.SystemUtils
+import common.data.Data.Key
 
 object SamplingUtils {
   val RECORD_SIZE = 100  // 10 bytes key + 90 bytes value
@@ -25,7 +26,7 @@ object SamplingUtils {
    * @param inputDirs Sequence of input directory paths
    * @return Array of sampled 10-byte keys
    */
-  def sampleFromInputs(inputDirs: Seq[String]): Option[Array[ByteString]] = {
+  def sampleFromInputs(inputDirs: Seq[String]): Option[Array[Key]] = {
     require {
       inputDirs.forall { dirPath => PathUtils.exists(dirPath) && PathUtils.isDirectory(dirPath) }
     }
@@ -50,7 +51,7 @@ object SamplingUtils {
       (filePath, recordIdx)
     }.groupBy(_._1).mapValues(_.map(_._2)).toMap
 
-    val results = new ConcurrentLinkedQueue[ByteString]()
+    val results = new ConcurrentLinkedQueue[Key]()
     val threadPool = Executors.newFixedThreadPool(THREAD_NUM)
     implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(threadPool)
 

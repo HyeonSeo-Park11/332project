@@ -4,7 +4,7 @@ import io.grpc.{ManagedChannel, ManagedChannelBuilder}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext}
 import worker.WorkerService.{WorkerServiceGrpc, WorkersRangeAssignment, WorkerRangeAssignment, WorkerNetworkInfo, RangeAssignment, AssignRangesResponse}
-import com.google.protobuf.ByteString
+import common.data.Data.Key
 
 class WorkerClient(host: String, port: Int)(implicit ec: ExecutionContext) {
   private val channel: ManagedChannel = ManagedChannelBuilder
@@ -14,7 +14,7 @@ class WorkerClient(host: String, port: Int)(implicit ec: ExecutionContext) {
 
   private val stub = WorkerServiceGrpc.stub(channel)
 
-  def assignRanges(assignments: Map[(String, Int), (ByteString, ByteString)]): Boolean = {
+  def assignRanges(assignments: Map[(String, Int), (Key, Key)]): Boolean = {
     val request = WorkersRangeAssignment(
       assignments = assignments.map { case ((ip, port), (start, end)) =>
         WorkerRangeAssignment(

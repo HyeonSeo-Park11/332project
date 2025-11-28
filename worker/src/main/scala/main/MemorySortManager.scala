@@ -4,11 +4,9 @@ import java.nio.file.{Files, Paths, StandardOpenOption}
 import java.util.concurrent.{Executors, ConcurrentLinkedQueue}
 import common.utils.SystemUtils
 import utils.{PathUtils, RecordIOUtils}
-import utils.RecordIOUtils.{RECORD_SIZE, KEY_SIZE, VALUE_SIZE}
 import scala.concurrent.{Future, ExecutionContext}
 import scala.jdk.CollectionConverters._
 import java.util.concurrent.atomic.AtomicInteger
-import com.google.protobuf.ByteString
 import scala.annotation.tailrec
 import utils.PathUtils
 import scala.async.Async.async
@@ -51,7 +49,6 @@ class MemorySortManager(inputDirs: Seq[String], outputDir: String) {
         val file = Paths.get(filePath)
         val fileSize = Files.size(file)
         val numRecords = fileSize / RECORD_SIZE
-        val comparator = ByteString.unsignedLexicographicalComparator
         
         println(s"[MergeSort-InMemory][$threadId] Processing file: $filePath (${numRecords} records)")
         
@@ -66,7 +63,8 @@ class MemorySortManager(inputDirs: Seq[String], outputDir: String) {
             val records = RecordIOUtils.readRecords(filePath, offset, recordsToRead)
             
             println(s"[MergeSort-InMemory][$threadId] Sorting chunk $currentChunk...")
-            val sortedRecords = records.sortWith((a, b) => comparator.compare(a._1, b._1) < 0)
+            implicit val ordering = getRecordOrdering
+            val sortedRecords = records.sorted
             
             val outputPath = s"$sortedDir/${fileId.incrementAndGet()}.bin"
             println(s"[MergeSort-InMemory][$threadId] Writing sorted chunk to: $outputPath")

@@ -5,13 +5,11 @@ import java.nio.channels.FileChannel
 import java.nio.file.{Files, Paths, StandardOpenOption}
 import com.google.protobuf.ByteString
 import common.utils.SystemUtils
+import common.data.Data.{Record, KEY_SIZE, VALUE_SIZE, RECORD_SIZE}
 
 object RecordIOUtils {
-  val RECORD_SIZE = 100
-  val KEY_SIZE = 10
-  val VALUE_SIZE = 90
   val MAX_CHUNK_SIZE_MB = 32  // Upper bound: 32 MiB
-  val MEMORY_OVERHEAD_FACTOR = 2 // (ByteString, ByteString) overhead, almost 2.2x memory usage, but 2x is enough since there are lots of optimizations
+  val MEMORY_OVERHEAD_FACTOR = 2 // Record overhead, almost 2.2x memory usage, but 2x is enough since there are lots of optimizations
 
   /**
    * Calculate chunk size: at least 3 files should fit in RAM, with upper bound of 32MiB
@@ -51,12 +49,12 @@ object RecordIOUtils {
   /**
    * Read records from file starting at offset
    */
-  def readRecords(filePath: String, offset: Long, count: Int): Array[(ByteString, ByteString)] = {
+  def readRecords(filePath: String, offset: Long, count: Int): Array[Record] = {
     val file = Paths.get(filePath)
     val channel = FileChannel.open(file, StandardOpenOption.READ)
     
     try {
-      val records = Array.ofDim[(ByteString, ByteString)](count)
+      val records = Array.ofDim[Record](count)
       val keyBuffer = ByteBuffer.allocate(KEY_SIZE)
       val valueBuffer = ByteBuffer.allocate(VALUE_SIZE)
       
@@ -90,7 +88,7 @@ object RecordIOUtils {
   /**
    * Read all records from file
    */
-  def readAllRecords(filePath: String): Array[(ByteString, ByteString)] = {
+  def readAllRecords(filePath: String): Array[Record] = {
     val fileSize = Files.size(Paths.get(filePath))
     val numRecords = (fileSize / RECORD_SIZE).toInt
     readRecords(filePath, 0, numRecords)
@@ -99,7 +97,7 @@ object RecordIOUtils {
   /**
    * Write records to file
    */
-  def writeRecords(filePath: String, records: Array[(ByteString, ByteString)]): Unit = {
+  def writeRecords(filePath: String, records: Array[Record]): Unit = {
     val channel = FileChannel.open(
       Paths.get(filePath),
       StandardOpenOption.CREATE,
