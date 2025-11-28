@@ -7,7 +7,7 @@ import global.WorkerState
 import worker.WorkerService.WorkerServiceGrpc
 import common.utils.SystemUtils
 import global.ConnectionManager
-import main.{RegisterManager, SampleManager, MemorySortManager}
+import main.{RegisterManager, SampleManager, MemorySortManager, FileMergeManager}
 import scala.async.Async.{async, await}
 import java.nio.file.Files
 
@@ -53,6 +53,12 @@ object Main extends App {
     new SampleManager().start()
 
     val files = await { new MemorySortManager(inputDirs, outputDir).start }
+
+    val (_, sortedFiles) = await {
+      WorkerState.waitForAssignment.zip(
+        new FileMergeManager(files, outputDir).start
+      )
+    }
 
     ConnectionManager.shutdownAllChannels()
 
