@@ -4,6 +4,8 @@ import com.google.protobuf.ByteString
 
 // Worker Singleton
 object WorkerState {
+  val memSortDirName = "sorted"
+
   private var masterIp: Option[String] = None
   private var masterPort: Option[Int] = None
   private var inputDirs: Seq[String] = Nil

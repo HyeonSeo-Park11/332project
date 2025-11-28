@@ -1,14 +1,15 @@
 import io.grpc.ServerBuilder
-import scala.concurrent.ExecutionContext
-import utils.{WorkerOptionUtils, PathUtils, SamplingUtils}
+import scala.concurrent.{ExecutionContext, Await}
+import scala.concurrent.duration._
+import utils.{WorkerOptionUtils, PathUtils}
 import server.{WorkerServiceImpl}
 import global.WorkerState
 import worker.WorkerService.WorkerServiceGrpc
-import scala.concurrent.Future
 import common.utils.SystemUtils
 import global.ConnectionManager
-import main.RegisterManager
-import main.SampleManager
+import main.{RegisterManager, SampleManager, MemorySortManager}
+import scala.async.Async.{async, await}
+import java.nio.file.Files
 
 object Main extends App {
   implicit val ec: ExecutionContext = ExecutionContext.global
@@ -44,13 +45,19 @@ object Main extends App {
 
   server.start()
 
-  ConnectionManager.initMasterChannel(masterIp, masterPort)
+  val mainWaiting = async {
+    ConnectionManager.initMasterChannel(masterIp, masterPort)
 
-  new RegisterManager().start(server.getPort)
+    new RegisterManager().start(server.getPort)
 
-  new SampleManager().start()
+    new SampleManager().start()
 
-  ConnectionManager.shutdownAllChannels()
+    val files = await { new MemorySortManager(inputDirs, outputDir).start }
 
-  server.awaitTermination()
+    ConnectionManager.shutdownAllChannels()
+
+    server.awaitTermination()
+  }
+
+  Await.result(mainWaiting, Duration.Inf)
 }
