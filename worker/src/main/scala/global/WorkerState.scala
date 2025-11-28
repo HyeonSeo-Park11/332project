@@ -9,6 +9,7 @@ object WorkerState {
   val memSortDirName = "sorted"
   val fileMergeDirName = "merged"
   val labelingDirName = "labeled"
+  val shuffleDirName = "shuffled"
 
   private var masterIp: Option[String] = None
   private var masterPort: Option[Int] = None
