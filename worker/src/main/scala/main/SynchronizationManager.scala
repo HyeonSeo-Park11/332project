@@ -41,7 +41,7 @@ class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(imp
   For each worker, send the file metadata list via gRPC.
   Await all transmissions to complete before returning.
   */
-  private def transmitPlans(plans: Map[(String, Int), Seq[String]],selfIp: String): Future[Unit] = {
+  private def transmitPlans(plans: Map[(String, Int), Seq[String]], selfIp: String): Future[Unit] = {
     if (plans.isEmpty) {
       println("[Sync] No outgoing files to report.")
       Future.successful(())
@@ -51,32 +51,24 @@ class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(imp
         val fileNames = files.mkString(", ")
         println(s"[Sync][SendList] $selfIp -> $ip:$port files: [$fileNames]")
 
-        deliverFileList(ip, selfIp, files).map { success =>
-            if (success) {
-              println(s"[Sync] Delivered ${files.size} file descriptors to $ip:$port")
-            } else {
-              println(s"[Sync] Failed to deliver file descriptors to $ip:$port")
-            }
-          }.recover { case e =>
-            println(s"[Sync] Error delivering file descriptors to $ip:$port: ${e.getMessage}")
+        val stub = WorkerServiceGrpc.stub(ConnectionManager.getWorkerChannel(ip))
+        val request = FileListMessage(
+          senderIp = selfIp,
+          files = files
+        )
+
+        stub.deliverFileList(request).map { response =>
+          if (response.success) {
+            println(s"[Sync] Delivered ${files.size} file descriptors to $ip:$port")
+          } else {
+            println(s"[Sync] Failed to deliver file descriptors to $ip:$port")
           }
+        }.recover { case e =>
+          println(s"[Sync] Error delivering file descriptors to $ip:$port: ${e.getMessage}")
+        }
       }
 
       Future.sequence(sendFutures).map(_ => ())
-    }
-  }
-
-  private def deliverFileList(targetIp: String, senderIp: String, files: Seq[String]): Future[Boolean] = {
-    val stub = WorkerServiceGrpc.stub(ConnectionManager.getWorkerChannel(targetIp))
-    val request = FileListMessage(
-      senderIp = senderIp,
-      files = files
-    )
-
-    stub.deliverFileList(request).map(_.success).recover {
-      case e: Exception =>
-        println(s"[Sync] Error delivering file list to $targetIp: ${e.getMessage}")
-        false
     }
   }
 
