@@ -5,6 +5,7 @@ import global.{ConnectionManager, WorkerState}
 import master.MasterService.{MasterServiceGrpc, SyncPhaseReport}
 import scala.async.Async.{async, await}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 import worker.WorkerService.{FileListMessage, WorkerServiceGrpc}
 
 class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(implicit ec: ExecutionContext) {
@@ -76,11 +77,12 @@ class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(imp
     WorkerState.getMasterAddr match {
       case Some(_) =>
         val request = SyncPhaseReport(workerIp = workerIp)
-        val success = await(masterStub.reportSyncCompletion(request)).success
-        if (success) {
-          println("[Sync] Synchronization completed. Waiting for master's shuffle command...")
-        } else {
-          println("[Sync] Master rejected synchronization completion report.")
+        await {masterStub.reportSyncCompletion(request).andThen {
+          case Success(_) =>
+            println("[Sync] Synchronization completed. Waiting for master's shuffle command...")
+          case Failure(e) =>
+            println(s"[Sync] Failed to report synchronization completion: ${e.getMessage}")
+          }
         }
 
       case None =>
