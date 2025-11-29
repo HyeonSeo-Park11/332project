@@ -3,13 +3,14 @@ package global
 import master.MasterService.WorkerInfo
 import scala.collection.mutable.ArrayBuffer
 import com.google.protobuf.ByteString
+import common.data.Data.{Key, Record, getKeyOrdering}
 
 // Master Singleton
 object MasterState {
   private var workersNum: Int = -1
   private var registeredWorkers = Map[String, WorkerInfo]()
-  private var samples = Map[String, Seq[ByteString]]()  // workerIp -> sampled keys
-  private var ranges = Map[(String, Int), (ByteString, ByteString)]()  // (start, end) for each worker
+  private var samples = Map[String, Seq[Key]]()  // workerIp -> sampled keys
+  private var ranges = Map[(String, Int), Record]()  // (start, end) for each worker
 
   def setWorkersNum(num: Int): Unit = this.synchronized {
     workersNum = num
@@ -44,7 +45,7 @@ object MasterState {
 
   def getRegisteredWorkers: Map[String, WorkerInfo] = this.synchronized { registeredWorkers }
 
-  def addSamples(workerIp: String, keys: Seq[ByteString]): Boolean = this.synchronized {
+  def addSamples(workerIp: String, keys: Seq[Key]): Boolean = this.synchronized {
     if (!registeredWorkers.contains(workerIp)) {
       println(s"Warning: Received samples from unregistered worker: $workerIp")
       return false
@@ -57,8 +58,8 @@ object MasterState {
   def getSampleSize: Int = this.synchronized { samples.size }
 
   def calculateRanges(): Unit = this.synchronized {
-    val comparator = ByteString.unsignedLexicographicalComparator()
-    val sortedKeys = samples.values.flatten.toArray.sortWith((a, b) => comparator.compare(a, b) < 0)
+    implicit val ordering = getKeyOrdering
+    val sortedKeys = samples.values.flatten.toArray.sorted
 
     // Calculate quantiles to divide into workersNum ranges
     val workers = registeredWorkers.toSeq.sortBy(_._1).map {
@@ -70,7 +71,7 @@ object MasterState {
       sortedKeys(math.max(0, idx))
     }
 
-    val rangeBuffer = ArrayBuffer[(ByteString, ByteString)]()
+    val rangeBuffer = ArrayBuffer[Record]()
     var previousKey = ByteString.copyFrom(Array.fill[Byte](10)(0))
     for (key <- rangesSeq) {
       rangeBuffer.append((previousKey, key))
@@ -83,7 +84,7 @@ object MasterState {
     }.toMap
   }
 
-  def getRanges: Map[(String, Int), (ByteString, ByteString)] = this.synchronized { ranges }
+  def getRanges: Map[(String, Int), Record] = this.synchronized { ranges }
 
   def isRangesReady: Boolean = this.synchronized { ranges.nonEmpty }
 }
