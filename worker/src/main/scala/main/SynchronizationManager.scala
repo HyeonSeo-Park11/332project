@@ -32,7 +32,7 @@ class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(imp
   private def getOutgoingPlans(selfIp: String): Map[(String, Int), Seq[String]] = {
     WorkerState.getAssignedFiles.collect {
         case (endpoint, files) if endpoint._1 != selfIp && files.nonEmpty =>
-          endpoint -> files.toSeq
+          endpoint -> files
       }
   }
 
