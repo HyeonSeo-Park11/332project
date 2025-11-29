@@ -5,7 +5,7 @@ import global.{ConnectionManager, WorkerState}
 import master.MasterService.{MasterServiceGrpc, SyncPhaseReport}
 import scala.async.Async.{async, await}
 import scala.concurrent.{ExecutionContext, Future}
-import worker.WorkerService.{FileListMessage, FileMetadata, WorkerServiceGrpc}
+import worker.WorkerService.{FileListMessage, WorkerServiceGrpc}
 
 class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(implicit ec: ExecutionContext) {
   WorkerState.setAssignedFiles(labeledFiles)
@@ -48,11 +48,10 @@ class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(imp
     } 
     else {
       val sendFutures = plans.toSeq.map { case ((ip, port), files) =>
-        val metadata = files.map(fileName => FileMetadata(fileName = fileName))
         val fileNames = files.mkString(", ")
         println(s"[Sync][SendList] $selfIp -> $ip:$port files: [$fileNames]")
 
-        deliverFileList(ip, selfIp, metadata).map { success =>
+        deliverFileList(ip, selfIp, files).map { success =>
             if (success) {
               println(s"[Sync] Delivered ${files.size} file descriptors to $ip:$port")
             } else {
@@ -67,7 +66,7 @@ class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(imp
     }
   }
 
-  private def deliverFileList(targetIp: String,senderIp: String,files: Seq[FileMetadata]): Future[Boolean] = {
+  private def deliverFileList(targetIp: String, senderIp: String, files: Seq[String]): Future[Boolean] = {
     val stub = WorkerServiceGrpc.stub(ConnectionManager.getWorkerChannel(targetIp))
     val request = FileListMessage(
       senderIp = senderIp,

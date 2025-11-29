@@ -39,13 +39,9 @@ message AssignRangesResponse {
   bool success = 1;
 }
 
-message FileMetadata {
-  string file_name = 1;
-}
-
 message FileListMessage {
   string sender_ip = 1;
-  repeated FileMetadata files = 2;
+  repeated string files = 2;
 }
 
 message FileListAck {

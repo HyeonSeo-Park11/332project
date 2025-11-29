@@ -48,7 +48,7 @@ class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc
   */
   override def deliverFileList(request: FileListMessage): Future[FileListAck] = Future {
     val senderIp = request.senderIp    
-    val files = request.files.map(_.fileName)
+    val files = request.files
     WorkerState.addIncomingFilePlan(senderIp, files)
 
     // for debugging
