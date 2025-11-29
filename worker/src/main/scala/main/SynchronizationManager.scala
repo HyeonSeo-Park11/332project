@@ -58,14 +58,11 @@ class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(imp
           files = files
         )
 
-        stub.deliverFileList(request).map { response =>
-          if (response.success) {
+        stub.deliverFileList(request).andThen {
+          case Success(_) =>
             println(s"[Sync] Delivered ${files.size} file descriptors to $ip:$port")
-          } else {
-            println(s"[Sync] Failed to deliver file descriptors to $ip:$port")
-          }
-        }.recover { case e =>
-          println(s"[Sync] Error delivering file descriptors to $ip:$port: ${e.getMessage}")
+          case Failure(e) =>
+            println(s"[Sync] Error delivering file descriptors to $ip:$port: ${e.getMessage}")
         }
       }
 
