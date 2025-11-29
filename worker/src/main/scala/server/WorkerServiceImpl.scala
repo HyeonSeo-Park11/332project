@@ -6,7 +6,6 @@ import io.grpc.{Status, StatusException}
 import java.math.BigInteger
 import global.WorkerState
 import global.ConnectionManager
-import worker.sync.SynchronizationManager
 
 class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc.WorkerService {
   override def assignRanges(request: WorkersRangeAssignment): Future[AssignRangesResponse] = {
@@ -40,11 +39,6 @@ class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc
       AssignRangesResponse(success = true)
     )
 
-    SynchronizationManager.runSyncPhase().recover {
-      case e: Exception =>
-        println(s"[Sync] Synchronization phase failed: ${e.getMessage}")
-    }
-
     response
   }
 
@@ -55,7 +49,7 @@ class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc
   override def deliverFileList(request: FileListMessage): Future[FileListAck] = Future {
     val senderIp = request.senderIp    
     val files = request.files.map(_.fileName)
-    Worker.addIncomingFilePlan(senderIp, files)
+    WorkerState.addIncomingFilePlan(senderIp, files)
 
     // for debugging
     val fileNames = files.mkString(", ")
@@ -66,14 +60,14 @@ class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc
   }
 
   override def startShuffle(request: StartShuffleCommand): Future[StartShuffleAck] = {
-    if (!Worker.hasReceivedShuffleCommand) {
+    if (!WorkerState.hasReceivedShuffleCommand) {
       println(s"Received shuffle start command. Reason: ${request.reason}")
     }
     /*
     By marking shuffleStartPromise to success, 
     unblock any waiting synchronization manager.
     */ 
-    Worker.markShuffleStarted()
+    WorkerState.markShuffleStarted()
 
     Future.successful(StartShuffleAck(success = true))
   }

@@ -60,6 +60,7 @@ object WorkerState {
   def waitForAssignment(): Future[Unit] = {
     assignPromise.future
   }
+  
   def setAssignedFiles(files: Map[(String, Int), List[String]]): Unit = this.synchronized {
     assignedFiles = files
   }

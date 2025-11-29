@@ -68,10 +68,10 @@ class MasterServiceImpl(implicit ec: ExecutionContext) extends MasterServiceGrpc
   If all have completed and shuffle has not started yet, trigger the shuffle phase.
   */
   override def reportSyncCompletion(request: SyncPhaseReport): Future[SyncPhaseAck] = {
-    val (allCompleted, current, total) = Master.markSyncCompleted(request.workerIp)
+    val (allCompleted, current, total) = MasterState.markSyncCompleted(request.workerIp)
     println(s"Worker ${request.workerIp} completed synchronization ($current/$total)")
 
-    if (allCompleted && !Master.hasShuffleStarted) {
+    if (allCompleted && !MasterState.hasShuffleStarted) {
       Future {
         startShufflePhase()
       }
@@ -81,15 +81,15 @@ class MasterServiceImpl(implicit ec: ExecutionContext) extends MasterServiceGrpc
   }
 
   private def startShufflePhase(): Unit = this.synchronized {
-    if (Master.hasShuffleStarted) {
+    if (MasterState.hasShuffleStarted) {
       println("Shuffle phase already started; ignoring duplicate request.")
       return
     }
 
-    Master.markShuffleStarted()
+    MasterState.markShuffleStarted()
     println("All workers reported sync completion. Triggering shuffle phase...")
 
-    val workers = Master.getRegisteredWorkers
+    val workers = MasterState.getRegisteredWorkers
     workers.foreach {
     case (ip, info) =>
       val workerClient = new WorkerClient(ip, info.port)
