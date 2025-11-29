@@ -6,7 +6,6 @@ x-app: &common
   volumes:
     - ../:/app
   command: ["tail", "-f", "/dev/null"]
-  mem_limit: 2g
 
 services:
   master:
@@ -22,16 +21,19 @@ services:
     <<: *common
     container_name: vm01
     networks: { internal_net: { ipv4_address: 2.2.2.101 } }
+    mem_limit: 2g
 
   vm02:
     <<: *common
     container_name: vm02
     networks: { internal_net: { ipv4_address: 2.2.2.102 } }
+    mem_limit: 2g
 
   vm03:
     <<: *common
     container_name: vm03
     networks: { internal_net: { ipv4_address: 2.2.2.103 } }
+    mem_limit: 2g
 
 networks:
   internal_net:
