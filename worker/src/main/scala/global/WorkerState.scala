@@ -79,9 +79,7 @@ object WorkerState {
   }
 
   def markShuffleStarted(): Unit = this.synchronized {
-    if (!shuffleStartPromise.isCompleted) {
-      shuffleStartPromise.success(())
-    }
+    shuffleStartPromise.trySuccess(())
   }
 
   def waitForShuffleCommand: Future[Unit] = shuffleStartPromise.future
