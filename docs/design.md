@@ -46,8 +46,11 @@
 ## Final Merge Phase
 - 파일을 모두 받으면 disk merge phase를 시작합니다. 다른 머신과 동기화하지 않아도 됩니다.
 - 전에 있던 Disk Merge Phase와 비슷하게 진행합니다.
+
+## Termination Phase
 - master에게 완료 신호를 보냅니다.
-- master는 모두 완료되는 것을 기다린 후 완료 메시지를 출력합니다.
+- master는 모두 완료되는 것을 기다린 후 worker에게 완료 메시지를 전송합니다.
+- worker는 모두가 완료되어야만 서버를 끌 수 있습니다.
 
 ## Fault tolerance
 

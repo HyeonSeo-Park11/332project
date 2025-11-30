@@ -159,3 +159,33 @@
 - JongWon Lee : merge pull request, implement final merge, termination logic
 - HyeonSeo Park : merge pull request, check correctness of program
 - MinWoo Kim : merge pull request, implement state restoration
+
+## Week7 Progress Report
+
+**Progress in the week** 
+
+- merged pull requests
+  - disk based merge sort - https://github.com/kmw14641/332project/pull/20
+  - synchronize - https://github.com/kmw14641/332project/pull/21
+  - shuffle - https://github.com/kmw14641/332project/pull/23
+- above pull requests include applying of refactoring
+  - connection manager - https://github.com/kmw14641/332project/pull/26
+  - increase readability of Main code using manager pattern - https://github.com/kmw14641/332project/pull/27
+- implement termination phase - https://github.com/kmw14641/332project/pull/33 (merged)
+- check correctness of program
+  - in local environment and small data, all worker has sorted data in order!
+  - some additional work is needed: not precisely met output format, temporary code removal or refactorings
+- implement state restoration (in progress)
+  - PoC of serialize/deserialize: https://github.com/kmw14641/332project/tree/feat/state-restoration
+
+**Goal of the next week:**
+- refactorings
+- implement fault tolerance and check correctness
+- final test on server environment
+- more last works if possible
+- prepare final presentation
+  
+**Goal of the next week for each individual member**
+- JongWon Lee : fault tolerance on disk based merge sort
+- HyeonSeo Park : fault tolerance on sync phase
+- MinWoo Kim : implement state restoration infra, fault tolerance on shuffle phase
