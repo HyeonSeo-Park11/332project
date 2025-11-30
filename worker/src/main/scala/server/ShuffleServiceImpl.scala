@@ -16,7 +16,7 @@ class ShuffleServiceImpl(implicit ec: ExecutionContext) extends ShuffleGrpc.Shuf
     val chunkSize = 1024 * 1024 * 180
 
     override def downloadFile(request: DownloadRequest, responseObserver: StreamObserver[DownloadResponse]): Unit = {
-        val sourcePath = Paths.get(s"${WorkerState.getOutputDir.get}/${WorkerState.labelingDirName}/${request.filename}")
+        val sourcePath = Paths.get(request.filename)
         val serverObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[DownloadResponse]]
         val fileChannel = FileChannel.open(sourcePath, StandardOpenOption.READ)  // 파일 열기 실패 시 StatusException 발생
 

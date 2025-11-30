@@ -14,11 +14,15 @@ import java.util.NoSuchElementException
 import global.WorkerState
 
 class FileMergeManager(files: List[String], outputDir: String) {
+  files.foreach { file =>
+    println(s"[FileMergeManager] Input file: $file")
+  }
+  
   val threadPool = Executors.newFixedThreadPool(RecordIOUtils.getThreadCount)
   implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(threadPool)
 
-  def start = {
-    val mergeDir = Paths.get(outputDir, WorkerState.fileMergeDirName).toString
+  def start(subDirName: String) = {
+    val mergeDir = Paths.get(outputDir, subDirName).toString
     PathUtils.createDirectoryIfNotExists(mergeDir)
 
     twoWayMergeSort(mergeDir)

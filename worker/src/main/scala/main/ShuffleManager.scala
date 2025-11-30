@@ -25,13 +25,22 @@ class ShuffleManager(implicit ec: ExecutionContext) {
             case (workerIp, fileList) => Future.successful(moveLocalFiles(fileList))
         }
         await { Future.sequence(workerFutures) }
-        shufflePlans
+        shufflePlans.map {
+            case (workerIp, fileList) => (workerIp, fileList.map {
+                filename => {
+                    val onlyFilename = Paths.get(filename).getFileName.toString
+                    s"${WorkerState.getOutputDir.get}/${WorkerState.shuffleDirName}/$onlyFilename"
+                }
+            })
+        }
     }
 
     private def moveLocalFiles(fileList: Seq[String]): Unit = {
         fileList.foreach { filename =>
-            val sourcePath = Paths.get(s"${WorkerState.getOutputDir.get}/${WorkerState.labelingDirName}/$filename")
-            val targetPath = Paths.get(s"${WorkerState.getOutputDir.get}/${WorkerState.shuffleDirName}/$filename")
+            println(s"[Local Shuffle] Moving file: $filename")
+            val onlyFilename = Paths.get(filename).getFileName.toString
+            val sourcePath = Paths.get(filename)
+            val targetPath = Paths.get(s"${WorkerState.getOutputDir.get}/${WorkerState.shuffleDirName}/$onlyFilename")
             Files.move(sourcePath, targetPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
         }
     }
@@ -40,6 +49,7 @@ class ShuffleManager(implicit ec: ExecutionContext) {
         fileList match {
             case Nil => ()
             case head :: tail => {
+                println(s"Processing file [$workerIp, $head]")
                 await { processFileWithRetry(workerIp, head) }
                 await { processFilesSequentially(workerIp, tail) }
             }
@@ -50,7 +60,8 @@ class ShuffleManager(implicit ec: ExecutionContext) {
         val promise = Promise[Unit]()
 
         val stub = ShuffleGrpc.stub(ConnectionManager.getWorkerChannel(workerIp))
-        val targetPath = Paths.get(s"${WorkerState.getOutputDir.get}/${WorkerState.shuffleDirName}/$filename")
+        val onlyFilename = Paths.get(filename).getFileName.toString
+        val targetPath = Paths.get(s"${WorkerState.getOutputDir.get}/${WorkerState.shuffleDirName}/$onlyFilename")
         val fileChannel: FileChannel = FileChannel.open(
             targetPath,
             StandardOpenOption.CREATE,
