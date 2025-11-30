@@ -12,7 +12,7 @@ class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(imp
   WorkerState.setAssignedFiles(labeledFiles)
   private val masterStub = MasterServiceGrpc.stub(ConnectionManager.getMasterChannel())
 
-  def start(): Future[Unit] = {
+  def start(): Future[Map[String, Seq[String]]] = {
     val selfIp = SystemUtils.getLocalIp.getOrElse(
       throw new IllegalStateException("[Sync] Failed to determine local IP. Abort synchronization.")
     )
@@ -25,6 +25,8 @@ class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(imp
       await(WorkerState.waitForShuffleCommand)
 
       println("[Sync] Master authorized shuffle phase. Ready for file transfers.")
+
+      WorkerState.getShufflePlans
     }
   }
 

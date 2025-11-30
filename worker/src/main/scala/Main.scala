@@ -64,7 +64,7 @@ object Main extends App {
 
     val labeledFiles = await { new LabelingManager(sortedFiles, assignedRange, outputDir).start }
 
-    await { new SynchronizationManager(labeledFiles).start() }
+    val shufflePlans =  await { new SynchronizationManager(labeledFiles).start() }
 
     ConnectionManager.shutdownAllChannels()
 
