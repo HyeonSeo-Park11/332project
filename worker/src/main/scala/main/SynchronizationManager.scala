@@ -18,6 +18,7 @@ class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(imp
     )
 
     async {
+      addLocalPlan(selfIp)
       val outgoingPlans = getOutgoingPlans(selfIp)
       await(transmitPlans(outgoingPlans, selfIp))
       await(notifyMasterOfCompletion(selfIp))
@@ -25,6 +26,14 @@ class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(imp
 
       println("[Sync] Master authorized shuffle phase. Ready for file transfers.")
     }
+  }
+
+  private def addLocalPlan(selfIp: String): Unit = {
+    val localFiles = WorkerState.getAssignedFiles
+      .find { case ((ip, _), _) => ip == selfIp }
+      .map(_._2)
+      .getOrElse(Nil)
+    WorkerState.addShufflePlan(selfIp, localFiles)
   }
 
   /*
