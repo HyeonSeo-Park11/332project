@@ -15,6 +15,7 @@ class TerminationManager(implicit ec: ExecutionContext) {
   def start(): Future[Unit] = async {
     val request = FinalMergePhaseReport(workerIp = SystemUtils.getLocalIp.get)
     await { masterStub.reportFinalMergeCompletion(request) }
+    await { global.WorkerState.waitForTerminate }
     ()
   }
 }

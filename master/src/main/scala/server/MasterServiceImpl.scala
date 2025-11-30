@@ -108,9 +108,26 @@ class MasterServiceImpl(implicit ec: ExecutionContext) extends MasterServiceGrpc
     println(s"Worker ${request.workerIp} completed final merge")
 
     if (MasterState.allFinalMergeCompleted) {
-      // TODO: terminate workers
+      terminateWorkers()  // do on background
     }
 
     FinalMergePhaseAck(success = true)
+  }
+
+  private def terminateWorkers(): Future[Unit] = Future {
+    assert(!MasterState.isTerminated, "Termination should not double triggered without fault tolerance")  // should decide how to handle fault tolerance
+
+    MasterState.markTerminated()
+    println("All workers reported final merge completion. Triggering termination phase...")
+
+    val workers = MasterState.getRegisteredWorkers
+    workers.foreach {
+    case (ip, info) =>
+      val workerClient = new WorkerClient(ip, info.port)
+      workerClient.terminate().recover {
+        case e: Exception => println(s"Failed to send terminate command to worker $ip:${info.port}: ${e.getMessage}")
+      }
+      .onComplete(_ => workerClient.shutdown())
+    }
   }
 }

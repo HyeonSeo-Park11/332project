@@ -22,6 +22,7 @@ object WorkerState {
   private var assignedFiles: Map[(String, Int), List[String]] = Map.empty
   private var shufflePlans = Map[String, Seq[String]]()
   private val shuffleStartPromise: Promise[Unit] = Promise[Unit]()
+  private val terminatePromise: Promise[Unit] = Promise[Unit]()
 
   def setMasterAddr(ip: String, port: Int): Unit = this.synchronized {
     masterIp = Some(ip)
@@ -88,4 +89,10 @@ object WorkerState {
   def waitForShuffleCommand: Future[Unit] = shuffleStartPromise.future
 
   def hasReceivedShuffleCommand: Boolean = shuffleStartPromise.isCompleted
+
+  def waitForTerminate: Future[Unit] = terminatePromise.future
+
+  def markTerminated(): Unit = this.synchronized {
+    terminatePromise.trySuccess(())
+  }
 }
