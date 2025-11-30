@@ -10,17 +10,30 @@ import global.ConnectionManager
 import utils.PathUtils
 import io.grpc.stub.{StreamObserver, ClientCallStreamObserver, ClientResponseObserver}
 import java.nio.channels.FileChannel
+import common.utils.SystemUtils
 
 class ShuffleManager(implicit ec: ExecutionContext) {
     val maxTries = 10
 
 	def start(shufflePlans: Map[String, Seq[String]]): Future[Map[String, Seq[String]]] = async {  // TODO: make input as optional, if none, restore
         PathUtils.createDirectoryIfNotExists(s"${WorkerState.getOutputDir.get}/${WorkerState.shuffleDirName}")
+
+        val selfIp = SystemUtils.getLocalIp.get
+
         val workerFutures = shufflePlans.map {
-            case (workerIp, fileList) => processFilesSequentially(workerIp, fileList)
+            case (workerIp, fileList) if workerIp != selfIp => processFilesSequentially(workerIp, fileList)
+            case (workerIp, fileList) => Future.successful(moveLocalFiles(fileList))
         }
         await { Future.sequence(workerFutures) }
         shufflePlans
+    }
+
+    private def moveLocalFiles(fileList: Seq[String]): Unit = {
+        fileList.foreach { filename =>
+            val sourcePath = Paths.get(s"${WorkerState.getOutputDir.get}/${WorkerState.labelingDirName}/$filename")
+            val targetPath = Paths.get(s"${WorkerState.getOutputDir.get}/${WorkerState.shuffleDirName}/$filename")
+            Files.move(sourcePath, targetPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        }
     }
 
     private def processFilesSequentially(workerIp: String, fileList: Seq[String]): Future[Unit] = async {
