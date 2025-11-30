@@ -5,6 +5,8 @@ import scala.concurrent.{ExecutionContext, Future}
 import master.MasterService.{MasterServiceGrpc, WorkerInfo, RegisterWorkerResponse, SampleData, SampleResponse, SyncPhaseReport, SyncPhaseAck}
 import global.MasterState
 import client.WorkerClient
+import master.MasterService.FinalMergePhaseReport
+import master.MasterService.FinalMergePhaseAck
 
 
 // TODO: handling fault tolerance
@@ -99,5 +101,16 @@ class MasterServiceImpl(implicit ec: ExecutionContext) extends MasterServiceGrpc
           false
       }.onComplete(_ => workerClient.shutdown())
     }
+  }
+
+  override def reportFinalMergeCompletion(request: FinalMergePhaseReport): Future[FinalMergePhaseAck] = Future {
+    MasterState.markFinalMergeCompleted(request.workerIp)
+    println(s"Worker ${request.workerIp} completed final merge")
+
+    if (MasterState.allFinalMergeCompleted) {
+      // TODO: terminate workers
+    }
+
+    FinalMergePhaseAck(success = true)
   }
 }

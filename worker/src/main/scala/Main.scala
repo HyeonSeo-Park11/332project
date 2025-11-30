@@ -7,7 +7,7 @@ import global.WorkerState
 import worker.WorkerService.WorkerServiceGrpc
 import common.utils.SystemUtils
 import global.ConnectionManager
-import main.{RegisterManager, SampleManager, MemorySortManager, FileMergeManager, LabelingManager, SynchronizationManager, ShuffleManager}
+import main.{RegisterManager, SampleManager, MemorySortManager, FileMergeManager, LabelingManager, SynchronizationManager, ShuffleManager, TerminationManager}
 import scala.async.Async.{async, await}
 import java.nio.file.Files
 import shuffle.Shuffle.ShuffleGrpc
@@ -93,6 +93,8 @@ object Main extends App {
       completedShufflePlans.flatMap(_._2).toList,
       outputDir
     ).start("final") }
+
+    await { new TerminationManager().start() }
 
     ConnectionManager.shutdownAllChannels()
 

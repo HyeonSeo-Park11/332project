@@ -13,6 +13,7 @@ object MasterState {
   private var ranges = Map[(String, Int), Record]()  // (start, end) for each worker
   private var syncCompletedWorkers = Set[String]()
   private var shuffleStarted = false
+  private var finalMergeCompletedWorkers = Set[String]()
 
   def setWorkersNum(num: Int): Unit = this.synchronized {
     workersNum = num
@@ -110,4 +111,13 @@ object MasterState {
   }
 
   def hasShuffleStarted: Boolean = this.synchronized { shuffleStarted }
+
+  def markFinalMergeCompleted(workerIp: String): Unit = this.synchronized {
+    assert(registeredWorkers.contains(workerIp))  // is this really helpful?
+    finalMergeCompletedWorkers += workerIp
+  }
+
+  def allFinalMergeCompleted: Boolean = this.synchronized {
+    finalMergeCompletedWorkers.size == registeredWorkers.size
+  }
 }
