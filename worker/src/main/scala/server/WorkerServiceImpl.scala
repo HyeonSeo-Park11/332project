@@ -1,7 +1,7 @@
 package server
 
 import scala.concurrent.{ExecutionContext, Future}
-import worker.WorkerService.{WorkerServiceGrpc, WorkersRangeAssignment, RangeAssignment, WorkerNetworkInfo, AssignRangesResponse, WorkerRangeAssignment}
+import worker.WorkerService.{WorkerServiceGrpc, WorkersRangeAssignment, RangeAssignment, WorkerNetworkInfo, AssignRangesResponse, WorkerRangeAssignment, FileListMessage, FileListAck, StartShuffleCommand, StartShuffleAck}
 import io.grpc.{Status, StatusException}
 import java.math.BigInteger
 import global.WorkerState
@@ -35,8 +35,40 @@ class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc
         println(s"Assigned range to worker $ip:$port => [${startInt.toString(16)}, ${endInt.toString(16)})")
     }
 
-    Future.successful(
+    val response = Future.successful(
       AssignRangesResponse(success = true)
     )
+
+    response
+  }
+
+  /*
+  Receive file metadata list from a peer worker.
+  Store the incoming file plans in the Worker singleton for later processing.
+  */
+  override def deliverFileList(request: FileListMessage): Future[FileListAck] = Future {
+    val senderIp = request.senderIp    
+    val files = request.files
+    WorkerState.addIncomingFilePlan(senderIp, files)
+
+    // for debugging
+    val fileNames = files.mkString(", ")
+    println(s"[Sync][RecvList] $senderIp -> files: [$fileNames]")
+    println(s"Received ${files.size} file descriptions from $senderIp")
+    
+    FileListAck(success = true)
+  }
+
+  override def startShuffle(request: StartShuffleCommand): Future[StartShuffleAck] = {
+    if (!WorkerState.hasReceivedShuffleCommand) {
+      println(s"Received shuffle start command. Reason: ${request.reason}")
+    }
+    /*
+    By marking shuffleStartPromise to success, 
+    unblock any waiting synchronization manager.
+    */ 
+    WorkerState.markShuffleStarted()
+
+    Future.successful(StartShuffleAck(success = true))
   }
 }

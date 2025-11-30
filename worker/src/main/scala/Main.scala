@@ -7,7 +7,7 @@ import global.WorkerState
 import worker.WorkerService.WorkerServiceGrpc
 import common.utils.SystemUtils
 import global.ConnectionManager
-import main.{RegisterManager, SampleManager, MemorySortManager, FileMergeManager, LabelingManager}
+import main.{RegisterManager, SampleManager, MemorySortManager, FileMergeManager, LabelingManager, SynchronizationManager}
 import scala.async.Async.{async, await}
 import java.nio.file.Files
 
@@ -63,6 +63,8 @@ object Main extends App {
     val assignedRange = WorkerState.getAssignedRange.getOrElse(throw new RuntimeException("Assigned range is not available"))
 
     val labeledFiles = await { new LabelingManager(sortedFiles, assignedRange, outputDir).start }
+
+    await { new SynchronizationManager(labeledFiles).start() }
 
     ConnectionManager.shutdownAllChannels()
 

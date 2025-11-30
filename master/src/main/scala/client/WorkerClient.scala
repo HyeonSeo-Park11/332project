@@ -3,8 +3,10 @@ package client
 import io.grpc.{ManagedChannel, ManagedChannelBuilder}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext}
-import worker.WorkerService.{WorkerServiceGrpc, WorkersRangeAssignment, WorkerRangeAssignment, WorkerNetworkInfo, RangeAssignment, AssignRangesResponse}
+import worker.WorkerService.{WorkerServiceGrpc, WorkersRangeAssignment, WorkerRangeAssignment, WorkerNetworkInfo, RangeAssignment, AssignRangesResponse, StartShuffleCommand}
 import common.data.Data.Key
+import scala.concurrent.{Await, ExecutionContext, Future}
+
 
 class WorkerClient(host: String, port: Int)(implicit ec: ExecutionContext) {
   private val channel: ManagedChannel = ManagedChannelBuilder
@@ -40,5 +42,14 @@ class WorkerClient(host: String, port: Int)(implicit ec: ExecutionContext) {
 
   def shutdown(): Unit = {
     channel.shutdown()
+  }
+
+  def startShuffle(reason: String = "Shuffle phase start"): Future[Boolean] = {
+    val request = StartShuffleCommand(reason = reason)
+    stub.startShuffle(request).map(_.success).recover {
+      case e: Exception =>
+        println(s"Error starting shuffle phase on worker $host:$port: ${e.getMessage}")
+        false
+    }
   }
 }
