@@ -59,7 +59,7 @@ object Main extends App {
 
     val (_, sortedFiles) = await {
       WorkerState.waitForAssignment.zip(
-        new FileMergeManager(files, outputDir).start
+        new FileMergeManager(files, outputDir).start(WorkerState.labelingDirName)
       )
     }
 
@@ -67,9 +67,32 @@ object Main extends App {
 
     val labeledFiles = await { new LabelingManager(sortedFiles, assignedRange, outputDir).start }
 
+    labeledFiles.foreach {
+      case (workerId, fileList) =>
+        val fileNames = fileList.mkString(", ")
+        println(s"[Labeling][Assigned] ${workerId._1}:${workerId._2} files: [$fileNames]")
+    }
+
     val shufflePlans =  await { new SynchronizationManager(labeledFiles).start() }
 
+    shufflePlans.foreach {
+      case (workerIp, fileList) =>
+        val fileNames = fileList.mkString(", ")
+        println(s"[Shuffle][Planned] $workerIp files: [$fileNames]")
+    }
+
     val completedShufflePlans = await { new ShuffleManager().start(shufflePlans) }
+
+    completedShufflePlans.foreach {
+      case (workerIp, fileList) =>
+        val fileNames = fileList.mkString(", ")
+        println(s"[Shuffle][Completed] $workerIp files: [$fileNames]")
+    }
+
+    await { new FileMergeManager(
+      completedShufflePlans.flatMap(_._2).toList,
+      outputDir
+    ).start("final") }
 
     ConnectionManager.shutdownAllChannels()
 
