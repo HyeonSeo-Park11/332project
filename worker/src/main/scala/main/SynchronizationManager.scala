@@ -9,6 +9,12 @@ import scala.util.{Failure, Success}
 import worker.WorkerService.{FileListMessage, WorkerServiceGrpc}
 
 class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(implicit ec: ExecutionContext) {
+  labeledFiles.foreach {
+    case ((ip, port), files) =>
+      val fileNames = files.mkString(", ")
+      println(s"[Sync][Assigned] $ip:$port files: [$fileNames]")
+  }
+  
   WorkerState.setAssignedFiles(labeledFiles)
   private val masterStub = MasterServiceGrpc.stub(ConnectionManager.getMasterChannel())
 
@@ -42,6 +48,10 @@ class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(imp
   Consume worker-provided assignments and drop entries that point back to the current worker or are empty.
   */
   private def getOutgoingPlans(selfIp: String): Map[(String, Int), Seq[String]] = {
+    WorkerState.getAssignedFiles.foreach {
+      case ((ip, port), files) =>
+        println(s"[Sync] Preparing outgoing plan to $ip:$port with ${files.mkString(", ")} files.")
+    }
     WorkerState.getAssignedFiles.collect {
         case (endpoint, files) if endpoint._1 != selfIp && files.nonEmpty =>
           endpoint -> files
