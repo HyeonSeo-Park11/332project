@@ -2,14 +2,15 @@ import io.grpc.ServerBuilder
 import scala.concurrent.{ExecutionContext, Await}
 import scala.concurrent.duration._
 import utils.{WorkerOptionUtils, PathUtils}
-import server.{WorkerServiceImpl}
+import server.{WorkerServiceImpl, ShuffleServiceImpl}
 import global.WorkerState
 import worker.WorkerService.WorkerServiceGrpc
 import common.utils.SystemUtils
 import global.ConnectionManager
-import main.{RegisterManager, SampleManager, MemorySortManager, FileMergeManager, LabelingManager, SynchronizationManager}
+import main.{RegisterManager, SampleManager, MemorySortManager, FileMergeManager, LabelingManager, SynchronizationManager, ShuffleManager}
 import scala.async.Async.{async, await}
 import java.nio.file.Files
+import shuffle.Shuffle.ShuffleGrpc
 
 object Main extends App {
   implicit val ec: ExecutionContext = ExecutionContext.global
@@ -40,7 +41,9 @@ object Main extends App {
 
   val server = ServerBuilder
     .forPort(0)
+    .maxInboundMessageSize(ConnectionManager.maxGrpcMessageSize)
     .addService(WorkerServiceGrpc.bindService(new WorkerServiceImpl(), ec))
+    .addService(ShuffleGrpc.bindService(new ShuffleServiceImpl(), ec))
     .build()
 
   server.start()
@@ -64,7 +67,9 @@ object Main extends App {
 
     val labeledFiles = await { new LabelingManager(sortedFiles, assignedRange, outputDir).start }
 
-    await { new SynchronizationManager(labeledFiles).start() }
+    val shufflePlans =  await { new SynchronizationManager(labeledFiles).start() }
+
+    val completedShufflePlans = await { new ShuffleManager().start(shufflePlans) }
 
     ConnectionManager.shutdownAllChannels()
 

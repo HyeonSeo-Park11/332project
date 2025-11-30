@@ -9,6 +9,9 @@ object WorkerState {
   val memSortDirName = "sorted"
   val fileMergeDirName = "merged"
   val labelingDirName = "labeled"
+  val shuffleDirName = "shuffled"
+
+  val diskIoLock = new Object()
 
   private var masterIp: Option[String] = None
   private var masterPort: Option[Int] = None
@@ -17,7 +20,7 @@ object WorkerState {
   private var assignedRange: Option[Map[(String, Int), Record]] = None
   private val assignPromise = Promise[Unit]()
   private var assignedFiles: Map[(String, Int), List[String]] = Map.empty
-  private var incomingFilePlans = Map[String, Seq[String]]()
+  private var shufflePlans = Map[String, Seq[String]]()
   private val shuffleStartPromise: Promise[Unit] = Promise[Unit]()
 
   def setMasterAddr(ip: String, port: Int): Unit = this.synchronized {
@@ -69,13 +72,13 @@ object WorkerState {
     assignedFiles
   }
 
-  def addIncomingFilePlan(senderIp: String, files: Seq[String]): Unit = this.synchronized {
-    val existing = incomingFilePlans.getOrElse(senderIp, Seq.empty)
-    incomingFilePlans += senderIp -> (existing ++ files)
+  def addShufflePlan(senderIp: String, files: Seq[String]): Unit = this.synchronized {
+    val existing = shufflePlans.getOrElse(senderIp, Seq.empty)
+    shufflePlans += senderIp -> (existing ++ files)
   }
 
-  def getIncomingFilePlans: Map[String, Seq[String]] = this.synchronized {
-    incomingFilePlans
+  def getShufflePlans: Map[String, Seq[String]] = this.synchronized {
+    shufflePlans
   }
 
   def markShuffleStarted(): Unit = this.synchronized {

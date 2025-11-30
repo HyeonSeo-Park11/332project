@@ -4,7 +4,7 @@ import io.grpc.{ManagedChannel, ManagedChannelBuilder}
 import scala.collection.mutable
 
 object ConnectionManager {
-    private val maxGrpcMessageSize: Int = 1024 * 1024 * 1024  // 1GB
+    val maxGrpcMessageSize: Int = 1024 * 1024 * 1024  // 1GB
 
     private var masterChannel: ManagedChannel = _
     private var workerChannels: mutable.Map[String, ManagedChannel] = mutable.Map()

@@ -77,7 +77,7 @@ class LabelingManager(sortedFiles: List[String], assignedRange: Map[(String, Int
             Files.move(Paths.get(filePath), newFilePath, StandardCopyOption.REPLACE_EXISTING)
             println(s"[FileAssignment]   ✓ Renamed entire file to: $newFileName")
             
-            val newAssignments = assignments.updated(workerId, newFilePath.toString :: assignments.getOrElse(workerId, List.empty))
+            val newAssignments = assignments.updated(workerId, newFileName :: assignments.getOrElse(workerId, List.empty))
             
             processFiles(workerId, rangeStart, rangeEnd, restFiles, newAssignments)
             
@@ -106,7 +106,7 @@ class LabelingManager(sortedFiles: List[String], assignedRange: Map[(String, Int
               RecordIOUtils.writeRecords(part1FilePath.toString, part1Records)
               println(s"[FileAssignment]   ✓ Created part1: $part1FileName (${part1Records.length} records)")
               
-              val newAssignments = assignments.updated(workerId, part1FilePath.toString :: assignments.getOrElse(workerId, List.empty))
+              val newAssignments = assignments.updated(workerId, part1FileName :: assignments.getOrElse(workerId, List.empty))
               
               // Part 2: push back to front of deque for next worker
               val tempFileName = Files.createTempFile(Paths.get(labelingDir), "temp-", ".part").getFileName.toString
