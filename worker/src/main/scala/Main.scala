@@ -7,7 +7,7 @@ import global.WorkerState
 import worker.WorkerService.WorkerServiceGrpc
 import common.utils.SystemUtils
 import global.ConnectionManager
-import main.{RegisterManager, SampleManager, MemorySortManager, FileMergeManager, LabelingManager, SynchronizationManager, ShuffleManager}
+import main.{RegisterManager, SampleManager, MemorySortManager, FileMergeManager, LabelingManager, SynchronizationManager, ShuffleManager, TerminationManager}
 import scala.async.Async.{async, await}
 import java.nio.file.Files
 import shuffle.Shuffle.ShuffleGrpc
@@ -94,9 +94,7 @@ object Main extends App {
       outputDir
     ).start("final") }
 
-    ConnectionManager.shutdownAllChannels()
-
-    server.awaitTermination()
+    await { new TerminationManager().shutdownServerSafely(server) }
   }
 
   Await.result(mainWaiting, Duration.Inf)

@@ -6,6 +6,8 @@ import scala.concurrent.{Await, ExecutionContext}
 import worker.WorkerService.{WorkerServiceGrpc, WorkersRangeAssignment, WorkerRangeAssignment, WorkerNetworkInfo, RangeAssignment, AssignRangesResponse, StartShuffleCommand}
 import common.data.Data.Key
 import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.async.Async.{async, await}
+import worker.WorkerService.TerminateCommand
 
 
 class WorkerClient(host: String, port: Int)(implicit ec: ExecutionContext) {
@@ -51,5 +53,11 @@ class WorkerClient(host: String, port: Int)(implicit ec: ExecutionContext) {
         println(s"Error starting shuffle phase on worker $host:$port: ${e.getMessage}")
         false
     }
+  }
+
+  def terminate(): Future[Unit] = async {
+    val request = TerminateCommand(reason = "")
+    await { stub.terminate(request) }
+    ()
   }
 }

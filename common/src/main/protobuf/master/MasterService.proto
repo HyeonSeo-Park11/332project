@@ -12,6 +12,9 @@ service MasterService {
 
   // Worker reports that synchronization phase is completed
   rpc ReportSyncCompletion (SyncPhaseReport) returns (SyncPhaseAck) {}
+
+  // Worker reports that final merge phase is completed
+  rpc ReportFinalMergeCompletion (FinalMergePhaseReport) returns (FinalMergePhaseAck) {}
 }
 
 // Worker information sent during registration
@@ -43,5 +46,14 @@ message SyncPhaseReport {
 }
 
 message SyncPhaseAck {
+  bool success = 1;
+}
+
+// Report message for final merge phase completion
+message FinalMergePhaseReport {
+  string worker_ip = 1;
+}
+
+message FinalMergePhaseAck {
   bool success = 1;
 }

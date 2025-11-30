@@ -12,6 +12,9 @@ service WorkerService {
 
   // Master notifies workers to start shuffle phase simultaneously
   rpc StartShuffle (StartShuffleCommand) returns (StartShuffleAck) {}
+
+  // Master notifies workers to terminate
+  rpc Terminate (TerminateCommand) returns (TerminateAck) {}
 }
 
 message WorkerNetworkInfo {
@@ -53,5 +56,13 @@ message StartShuffleCommand {
 }
 
 message StartShuffleAck {
+  bool success = 1;
+}
+
+message TerminateCommand {
+  string reason = 1;
+}
+
+message TerminateAck {
   bool success = 1;
 }
