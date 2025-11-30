@@ -94,11 +94,7 @@ object Main extends App {
       outputDir
     ).start("final") }
 
-    await { new TerminationManager().start() }
-
-    ConnectionManager.shutdownAllChannels()
-
-    server.awaitTermination()
+    await { new TerminationManager().shutdownServerSafely(server) }
   }
 
   Await.result(mainWaiting, Duration.Inf)
