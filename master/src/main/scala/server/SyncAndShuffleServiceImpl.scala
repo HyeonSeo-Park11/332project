@@ -1,0 +1,42 @@
+package server
+
+import scala.concurrent.{ExecutionContext, Future}
+import master.MasterService.{SyncPhaseReport, SyncPhaseAck}
+import global.{MasterState, ConnectionManager}
+import worker.WorkerService.{WorkerServiceGrpc, StartShuffleCommand}
+
+class SyncAndShuffleServiceImpl(implicit ec: ExecutionContext) {
+  def reportSyncCompletion(request: SyncPhaseReport): Future[SyncPhaseAck] = {
+    val (allCompleted, current, total) = MasterState.markSyncCompleted(request.workerIp)
+    println(s"Worker ${request.workerIp} completed synchronization ($current/$total)")
+
+    if (allCompleted && !MasterState.hasShuffleStarted) {
+      Future {
+        startShufflePhase()
+      }
+    }
+
+    Future.successful(SyncPhaseAck(success = true))
+  }
+
+  private def startShufflePhase(): Unit = this.synchronized {
+    if (MasterState.hasShuffleStarted) {
+      println("Shuffle phase already started; ignoring duplicate request.")
+      return
+    }
+
+    MasterState.markShuffleStarted()
+    println("All workers reported sync completion. Triggering shuffle phase...")
+
+    val workers = MasterState.getRegisteredWorkers
+    workers.foreach { case (ip, info) =>
+      val stub = WorkerServiceGrpc.stub(ConnectionManager.getWorkerChannel(ip))
+      val request = StartShuffleCommand(reason = "Shuffle phase start")
+      stub.startShuffle(request).map(_.success).recover {
+        case e: Exception =>
+          println(s"Failed to send shuffle start command to worker $ip:${info.port}: ${e.getMessage}")
+          false
+      }
+    }
+  }
+}
