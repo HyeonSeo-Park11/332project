@@ -1,10 +1,11 @@
 import io.grpc.ServerBuilder
 import scala.concurrent.ExecutionContext
 import utils.MasterOptionUtils
-import server.MasterServiceImpl
+import server.{RegisterServiceImpl, SamplingServiceImpl, SyncAndShuffleServiceImpl, FinalMergeServiceImpl}
 import global.MasterState
 import master.MasterService.MasterServiceGrpc
 import common.utils.SystemUtils
+import io.grpc.ServerServiceDefinition
 
 object Main extends App {
   implicit val ec: ExecutionContext = ExecutionContext.global
@@ -20,9 +21,27 @@ object Main extends App {
     sys.exit(1)
   }
 
+  // Create service implementations
+  val registerService = new RegisterServiceImpl()
+  val samplingService = new SamplingServiceImpl()
+  val syncAndShuffleService = new SyncAndShuffleServiceImpl()
+  val finalMergeService = new FinalMergeServiceImpl()
+
+  // Bind all services to the same gRPC service definition
+  val serviceDefinition = MasterServiceGrpc.bindService(new MasterServiceGrpc.MasterService {
+    override def registerWorker(request: master.MasterService.WorkerInfo) = 
+      registerService.registerWorker(request)
+    override def sampling(request: master.MasterService.SampleData) = 
+      samplingService.sampling(request)
+    override def reportSyncCompletion(request: master.MasterService.SyncPhaseReport) = 
+      syncAndShuffleService.reportSyncCompletion(request)
+    override def reportFinalMergeCompletion(request: master.MasterService.FinalMergePhaseReport) = 
+      finalMergeService.reportFinalMergeCompletion(request)
+  }, ec)
+
   val server = ServerBuilder
     .forPort(0)
-    .addService(MasterServiceGrpc.bindService(new MasterServiceImpl(), ec))
+    .addService(serviceDefinition)
     .build()
 
   server.start()
