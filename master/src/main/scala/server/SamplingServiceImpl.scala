@@ -12,13 +12,11 @@ class SamplingServiceImpl(implicit ec: ExecutionContext) extends SamplingService
     val keys = request.keys
     val success = MasterState.addSamples(request.workerIp, keys)
 
-    // If all workers have sent samples, calculate ranges
+    // If all workers have sent samples, spawn a thread to calculate ranges and assign them
     if (MasterState.getSampleSize == MasterState.getWorkersNum && success) {
-      MasterState.calculateRanges()
-      // If ranges are ready, trigger range assignment
-      if (MasterState.isRangesReady) {
-        // Spawn a separate thread to assign ranges to workers
-        Future {
+      Future {
+        MasterState.calculateRanges()
+        if (MasterState.isRangesReady) {
           assignRangesToWorkers()
         }
       }
