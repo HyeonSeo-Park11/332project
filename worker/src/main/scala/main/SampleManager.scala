@@ -1,7 +1,7 @@
 package main
 
 import scala.concurrent.ExecutionContext
-import master.MasterService.MasterServiceGrpc
+import master.MasterService.{SamplingServiceGrpc, SampleData}
 import global.ConnectionManager
 import scala.concurrent.Future
 import utils.SamplingUtils
@@ -12,7 +12,7 @@ import common.utils.SystemUtils
 import global.WorkerState
 
 class SampleManager(implicit ec: ExecutionContext) {
-  private val stub = MasterServiceGrpc.stub(ConnectionManager.getMasterChannel())
+  private val stub = SamplingServiceGrpc.stub(ConnectionManager.getMasterChannel())
 
   def start(): Future[Unit] = Future {
     val workerIp = SystemUtils.getLocalIp.getOrElse {

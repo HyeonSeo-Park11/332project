@@ -3,12 +3,12 @@ package server
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.async.Async.{async, await}
-import master.MasterService.{SampleData, SampleResponse}
+import master.MasterService.{SampleData, SampleResponse, SamplingServiceGrpc}
 import global.{MasterState, ConnectionManager}
 import worker.WorkerService.{WorkerServiceGrpc, WorkersRangeAssignment, WorkerRangeAssignment, WorkerNetworkInfo, RangeAssignment}
 
-class SamplingServiceImpl(implicit ec: ExecutionContext) {
-  def sampling(request: SampleData): Future[SampleResponse] = {
+class SamplingServiceImpl(implicit ec: ExecutionContext) extends SamplingServiceGrpc.SamplingService {
+  override def sampling(request: SampleData): Future[SampleResponse] = {
     val keys = request.keys
     val success = MasterState.addSamples(request.workerIp, keys)
 

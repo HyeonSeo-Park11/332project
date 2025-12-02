@@ -1,12 +1,12 @@
 package server
 
 import scala.concurrent.{ExecutionContext, Future}
-import master.MasterService.{FinalMergePhaseReport, FinalMergePhaseAck}
+import master.MasterService.{FinalMergePhaseReport, FinalMergePhaseAck, FinalMergeServiceGrpc}
 import global.{MasterState, ConnectionManager}
 import worker.WorkerService.{WorkerServiceGrpc, TerminateCommand}
 
-class FinalMergeServiceImpl(implicit ec: ExecutionContext) {
-  def reportFinalMergeCompletion(request: FinalMergePhaseReport): Future[FinalMergePhaseAck] = Future {
+class FinalMergeServiceImpl(implicit ec: ExecutionContext) extends FinalMergeServiceGrpc.FinalMergeService {
+  override def reportFinalMergeCompletion(request: FinalMergePhaseReport): Future[FinalMergePhaseAck] = Future {
     MasterState.markFinalMergeCompleted(request.workerIp)
     println(s"Worker ${request.workerIp} completed final merge")
 

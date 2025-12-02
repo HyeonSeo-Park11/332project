@@ -2,18 +2,23 @@ syntax = "proto3";
 
 package master;
 
-// Master service for worker registration
-service MasterService {
-  // Worker registers itself with the master
+// Worker registration service
+service RegisterService {
   rpc RegisterWorker (WorkerInfo) returns (RegisterWorkerResponse) {}
-  
-  // Worker sends sampled keys to master
+}
+
+// Sampling service for key distribution
+service SamplingService {
   rpc Sampling (SampleData) returns (SampleResponse) {}
+}
 
-  // Worker reports that synchronization phase is completed
+// Synchronization and shuffle coordination service
+service SyncAndShuffleService {
   rpc ReportSyncCompletion (SyncPhaseReport) returns (SyncPhaseAck) {}
+}
 
-  // Worker reports that final merge phase is completed
+// Final merge completion service
+service FinalMergeService {
   rpc ReportFinalMergeCompletion (FinalMergePhaseReport) returns (FinalMergePhaseAck) {}
 }
 

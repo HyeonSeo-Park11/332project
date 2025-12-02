@@ -1,12 +1,12 @@
 package server
 
 import scala.concurrent.{ExecutionContext, Future}
-import master.MasterService.{SyncPhaseReport, SyncPhaseAck}
+import master.MasterService.{SyncPhaseReport, SyncPhaseAck, SyncAndShuffleServiceGrpc}
 import global.{MasterState, ConnectionManager}
 import worker.WorkerService.{WorkerServiceGrpc, StartShuffleCommand}
 
-class SyncAndShuffleServiceImpl(implicit ec: ExecutionContext) {
-  def reportSyncCompletion(request: SyncPhaseReport): Future[SyncPhaseAck] = {
+class SyncAndShuffleServiceImpl(implicit ec: ExecutionContext) extends SyncAndShuffleServiceGrpc.SyncAndShuffleService {
+  override def reportSyncCompletion(request: SyncPhaseReport): Future[SyncPhaseAck] = {
     val (allCompleted, current, total) = MasterState.markSyncCompleted(request.workerIp)
     println(s"Worker ${request.workerIp} completed synchronization ($current/$total)")
 
