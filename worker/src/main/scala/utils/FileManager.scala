@@ -170,4 +170,55 @@ object FileManager {
       delete(filePath)
     }
   }
+
+  def deleteAllSubDir: Unit = {
+    outputSubDirNames.map(_.value).foreach { subDirName =>
+      outputDir.foreach { outDir =>
+        val subDirPath = Paths.get(outDir, subDirName)
+        if (Files.exists(subDirPath) && Files.isDirectory(subDirPath)) {
+          try {
+            Files.walk(subDirPath)
+              .sorted(java.util.Comparator.reverseOrder())
+              .forEach { path =>
+                Files.deleteIfExists(path)
+              }
+            println(s"[FileManager] Deleted sub-directory: $subDirPath")
+          } catch {
+            case e: Exception =>
+              println(s"[WARN] Failed to delete sub-directory $subDirPath: ${e.getMessage}")
+          }
+        }
+
+      }
+    }
+  }
+
+  def mergeAllFiles(outputPath: String, filenames: Seq[String], inputSubDirName: String): Unit = {
+    implicit val inputSubDir: InputSubDir = InputSubDir(inputSubDirName)
+    require { inputSubDirNames.contains(inputSubDir) }
+    
+    val filePaths = getFilePathFromInputDirAll(filenames)
+    Using(
+      FileChannel.open(
+        Paths.get(outputPath),
+        StandardOpenOption.CREATE, 
+        StandardOpenOption.WRITE, 
+        StandardOpenOption.TRUNCATE_EXISTING
+      )
+    ) { destChannel =>
+      filePaths.foreach { filePath =>
+        Using(FileChannel.open(Paths.get(filePath), StandardOpenOption.READ)) { srcChannel =>
+          val size = srcChannel.size()
+          var position: Long = 0
+          while (position < size) {
+            val transferred = srcChannel.transferTo(position, size - position, destChannel)
+            position += transferred
+            if (transferred == 0) {
+              throw new RuntimeException(s"Failed to transfer data from $filePath to $outputPath")
+            }
+          }
+        }.get
+      }
+    }.get
+  }
 }

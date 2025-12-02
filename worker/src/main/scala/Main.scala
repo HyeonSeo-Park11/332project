@@ -92,6 +92,11 @@ object Main extends App {
     println(s"[Shuffle][Completed] files: [${completedShufflePlans.mkString(", ")}]")
 
     val finalFiles = await { new FileMergeManager(FileManager.shuffleDirName, FileManager.finalDirName).start(completedShufflePlans) }
+    FileManager.mergeAllFiles(s"$outputDir/sorted.bin", finalFiles, FileManager.finalDirName)
+    println(s"[Completed] Final output file: ${s"$outputDir/sorted.bin"}")
+
+    FileManager.deleteAll(finalFiles)
+    FileManager.deleteAllSubDir
 
     await { new TerminationManager().shutdownServerSafely(server) }
   }
