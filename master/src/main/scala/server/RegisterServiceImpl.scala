@@ -5,11 +5,8 @@ import master.MasterService.{WorkerInfo, RegisterWorkerResponse, RegisterService
 import global.MasterState
 
 class RegisterServiceImpl(implicit ec: ExecutionContext) extends RegisterServiceGrpc.RegisterService {
-  override def registerWorker(request: WorkerInfo): Future[RegisterWorkerResponse] = {
+  override def registerWorker(request: WorkerInfo): Future[RegisterWorkerResponse] = Future {
     MasterState.registerWorker(request)
-
-    Future.successful(
-      RegisterWorkerResponse(success = true)
-    )
+    RegisterWorkerResponse(success = true)
   }
 }
