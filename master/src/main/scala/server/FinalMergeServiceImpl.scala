@@ -33,13 +33,13 @@ class FinalMergeServiceImpl(implicit ec: ExecutionContext) {
       }
     }
 
-    Future.sequence(terminateFutures).flatMap { _ =>
-      Future {
-        println("All workers should be terminated. Initiating master shutdown...")
-        Thread.sleep(5000)
-        ConnectionManager.shutdownAllChannels()
-        System.exit(0)
-      }
+    Future.sequence(terminateFutures).map { _ =>
+      println("All workers should be terminated. Signaling master shutdown...")
+      MasterState.signalShutdown()
+    }.recover {
+      case e: Exception =>
+        println(s"Error during termination phase: ${e.getMessage}. Forcing shutdown...")
+        MasterState.signalShutdown()
     }
   }
 }

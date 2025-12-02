@@ -1,8 +1,9 @@
 import io.grpc.ServerBuilder
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Await}
+import scala.concurrent.duration._
 import utils.MasterOptionUtils
 import server.{RegisterServiceImpl, SamplingServiceImpl, SyncAndShuffleServiceImpl, FinalMergeServiceImpl}
-import global.MasterState
+import global.{MasterState, ConnectionManager}
 import master.MasterService.MasterServiceGrpc
 import common.utils.SystemUtils
 import io.grpc.ServerServiceDefinition
@@ -49,5 +50,13 @@ object Main extends App {
   val port = server.getPort
   println(s"$ip:$port")
 
+  Await.result(MasterState.awaitShutdown, Duration.Inf)
+  
+  println("Shutdown signal received. Initiating graceful shutdown...")
+  server.shutdown()
   server.awaitTermination()
+  
+  // Cleanup after server termination
+  ConnectionManager.shutdownAllChannels()
+  println("Master shutdown complete.")
 }
