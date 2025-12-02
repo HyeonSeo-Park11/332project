@@ -2,7 +2,7 @@ package server
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
-import scala.concurrent.Await
+import scala.async.Async.{async, await}
 import master.MasterService.{SampleData, SampleResponse}
 import global.{MasterState, ConnectionManager}
 import worker.WorkerService.{WorkerServiceGrpc, WorkersRangeAssignment, WorkerRangeAssignment, WorkerNetworkInfo, RangeAssignment}
@@ -48,21 +48,13 @@ class SamplingServiceImpl(implicit ec: ExecutionContext) {
     )
     
     for ((ip, info) <- workers) {
-      val assign = Future {
+      async {
         val stub = WorkerServiceGrpc.stub(ConnectionManager.getWorkerChannel(ip))
-        val responseFuture = stub.assignRanges(request)
-        try {
-          val response = Await.result(responseFuture, 10.seconds)
-          response.success
-        } catch {
-          case e: Exception =>
-            println(s"Error assigning range to worker: ${e.getMessage}")
-            false
-        }
-      }
-      assign.recover {
-        case e: Exception =>
-          println(s"Failed to assign range to worker $ip:${info.port}: ${e.getMessage}")
+        val response = await(stub.assignRanges(request))
+        response.success
+      }.recover { case e =>
+        println(s"Failed to assign range to worker $ip:${info.port}: ${e.getMessage}")
+        false
       }
     }
   }
