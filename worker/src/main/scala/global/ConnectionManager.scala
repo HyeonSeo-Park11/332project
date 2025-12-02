@@ -34,8 +34,7 @@ object ConnectionManager {
     }
 
     def getWorkerChannel(ip: String): ManagedChannel = this.synchronized {
-        assert( workerChannels.contains(ip), s"Worker channel should always exist, even if invalid port" )
-        workerChannels(ip)
+        workerChannels.getOrElse(ip, throw new NoSuchElementException(s"Worker channel for $ip not found. It should always exist."))
     }
 
     def shutdownAllChannels(): Unit = this.synchronized{
