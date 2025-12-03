@@ -40,5 +40,6 @@ object ConnectionManager {
     def shutdownAllChannels(): Unit = this.synchronized{
         masterChannel.shutdown()
         workerChannels.values.foreach(_.shutdown())
+        workerChannels.clear()
     }
 }
