@@ -17,7 +17,7 @@ object StateRestoreManager {
         FileManager.createDirectoryIfNotExists(FileManager.getFilePathFromOutputDir(""))
 
         Using(new ObjectOutputStream(new FileOutputStream(FileManager.getFilePathFromOutputDir(stateFileName)))) { oos =>
-            val instance = WorkerState.getInstance
+            val instance = WorkerState.synchronized { WorkerState.instance }
             oos.writeObject(instance)
         }.get
     }
@@ -27,7 +27,7 @@ object StateRestoreManager {
 
         Using(new ObjectInputStream(new FileInputStream(FileManager.getFilePathFromOutputDir(stateFileName)))) { ois =>
             val instance = ois.readObject().asInstanceOf[WorkerState]
-            WorkerState.setInstance(instance)
+            WorkerState.synchronized { WorkerState.instance = instance }
         }.get
     }
 
