@@ -56,6 +56,7 @@ class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc
     val senderIp = request.senderIp    
     val files = request.files
     SynchronizationState.addShufflePlan(senderIp, files)
+    StateRestoreManager.storeState()
 
     // for debugging
     val fileNames = files.mkString(", ")
