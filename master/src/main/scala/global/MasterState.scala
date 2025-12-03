@@ -31,10 +31,10 @@ object MasterState {
   def registerWorker(request: WorkerInfo): Boolean = this.synchronized {
     val workerIp = request.ip
     if (registeredWorkers.contains(workerIp)) {
-        println(s"Fault detected! Re-register worker($workerIp:${request.port})")
-        println(registeredWorkers.keys.mkString(", "))
+      println(s"Fault detected! Re-register worker($workerIp:${request.port})")
+      println(registeredWorkers.keys.mkString(", "))
       registeredWorkers += (workerIp -> request)
-        true
+      true
     } else {
       registeredWorkers += (workerIp -> request)
       if (registeredWorkers.size == workersNum) {
