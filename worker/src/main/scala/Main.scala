@@ -40,8 +40,6 @@ object Main extends App {
   FileManager.createDirectoryIfNotExists(outputDir)
 
   WorkerState.setMasterAddr(masterIp, masterPort)
-  WorkerState.setInputDirs(inputDirs)
-  WorkerState.setOutputDir(outputDir)
   FileManager.setInputDirs(inputDirs)
   FileManager.setOutputDir(outputDir)
 

@@ -9,7 +9,7 @@ import master.MasterService.SampleData
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import common.utils.SystemUtils
-import global.WorkerState
+import utils.FileManager
 
 class SampleManager(implicit ec: ExecutionContext) {
   private val stub = SamplingServiceGrpc.stub(ConnectionManager.getMasterChannel())
@@ -21,7 +21,7 @@ class SampleManager(implicit ec: ExecutionContext) {
     }
 
     try {
-      val samples = SamplingUtils.sampleFromInputs(WorkerState.getInputDirs).getOrElse {
+      val samples = SamplingUtils.sampleFromInputs(FileManager.getInputDirs).getOrElse {
         println("Warning: Sampling failed")
         sys.exit(1)
       }
