@@ -1,7 +1,7 @@
 package main
 
 import scala.concurrent.ExecutionContext
-import master.MasterService.MasterServiceGrpc
+import master.MasterService.{RegisterServiceGrpc, WorkerInfo}
 import global.ConnectionManager
 import scala.concurrent.Future
 import common.utils.SystemUtils
@@ -10,7 +10,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 class RegisterManager(implicit ec: ExecutionContext) {
-  private val stub = MasterServiceGrpc.stub(ConnectionManager.getMasterChannel())
+  private val stub = RegisterServiceGrpc.stub(ConnectionManager.getMasterChannel())
 
   def start(port: Int): Unit = {
     val workerIp = SystemUtils.getLocalIp.getOrElse {

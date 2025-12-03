@@ -2,7 +2,7 @@ package main
 
 import common.utils.SystemUtils
 import global.{ConnectionManager, WorkerState}
-import master.MasterService.{MasterServiceGrpc, SyncPhaseReport}
+import master.MasterService.{SyncAndShuffleServiceGrpc, SyncPhaseReport}
 import scala.async.Async.{async, await}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -16,7 +16,7 @@ class SynchronizationManager(labeledFiles: Map[(String, Int), List[String]])(imp
   }
   
   WorkerState.setAssignedFiles(labeledFiles)
-  private val masterStub = MasterServiceGrpc.stub(ConnectionManager.getMasterChannel())
+  private val masterStub = SyncAndShuffleServiceGrpc.stub(ConnectionManager.getMasterChannel())
 
   def start(): Future[Map[String, Seq[String]]] = {
     val selfIp = SystemUtils.getLocalIp.getOrElse(

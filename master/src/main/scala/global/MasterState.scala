@@ -4,6 +4,7 @@ import master.MasterService.WorkerInfo
 import scala.collection.mutable.ArrayBuffer
 import com.google.protobuf.ByteString
 import common.data.Data.{Key, Record, getKeyOrdering}
+import scala.concurrent.{Promise, Future}
 
 // Master Singleton
 object MasterState {
@@ -15,6 +16,7 @@ object MasterState {
   private var shuffleStarted = false
   private var finalMergeCompletedWorkers = Set[String]()
   private var terminated = false
+  private val shutdownPromise: Promise[Unit] = Promise[Unit]()
 
   def setWorkersNum(num: Int): Unit = this.synchronized {
     workersNum = num
@@ -125,4 +127,12 @@ object MasterState {
   def markTerminated(): Unit = this.synchronized { terminated = true }
 
   def isTerminated: Boolean = this.synchronized { terminated }
+
+  def signalShutdown(): Unit = {
+    if (!shutdownPromise.isCompleted) {
+      shutdownPromise.success(())
+    }
+  }
+
+  def awaitShutdown: Future[Unit] = shutdownPromise.future
 }
