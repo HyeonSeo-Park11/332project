@@ -32,9 +32,6 @@ class SamplingServiceImpl(implicit ec: ExecutionContext) extends SamplingService
     val ranges = MasterState.getRanges
 
     println("Assigning ranges to workers...")
-
-    // Initialize worker channels before assigning ranges
-    ConnectionManager.initWorkerChannels(workers.map { case (ip, info) => (ip, info.port) })
     
     val request = WorkersRangeAssignment(
       assignments = ranges.map { case ((workerIp, workerPort), (start, end)) =>

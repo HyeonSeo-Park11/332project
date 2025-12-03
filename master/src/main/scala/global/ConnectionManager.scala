@@ -12,15 +12,12 @@ object ConnectionManager {
         ManagedChannelBuilder.forAddress(ip, port).maxInboundMessageSize(maxGrpcMessageSize).usePlaintext().build()
     }
 
-    def initWorkerChannels(workers: Seq[(String, Int)]): Unit = this.synchronized {
-        assert( workers.map(_._1).toSet.size == workers.size, "Worker IPs must be unique" )
-        workers.foreach { case (ip, port) => 
-            workerChannels += ip -> createChannel(ip, port)
+    def registerWorkerChannel(ip: String, port: Int): Unit = this.synchronized {
+        workerChannels.get(ip).foreach { existingChannel =>
+            if (!existingChannel.isShutdown) {
+                existingChannel.shutdown()
+            }
         }
-    }
-
-    def setWorkerChannel(ip: String, port: Int): Unit = this.synchronized {
-        getWorkerChannel(ip).shutdown()
         workerChannels(ip) = createChannel(ip, port)
     }
 
