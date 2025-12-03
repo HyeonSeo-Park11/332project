@@ -2,8 +2,7 @@ package main
 
 import java.nio.file.{Files, Paths, StandardOpenOption}
 import java.util.concurrent.{Executors, ConcurrentLinkedQueue}
-import common.utils.SystemUtils
-import utils.{PathUtils, RecordIOUtils}
+import utils.{PathUtils, RecordIOUtils, ThreadpoolUtils}
 import scala.concurrent.{Future, ExecutionContext}
 import scala.jdk.CollectionConverters._
 import java.util.concurrent.atomic.AtomicInteger
@@ -14,14 +13,11 @@ import common.data.Data.{Record, getRecordOrdering, RECORD_SIZE, KEY_SIZE, VALUE
 import global.WorkerState
 
 class MemorySortManager(inputDirs: Seq[String], outputDir: String) {
-  val threadPool = Executors.newFixedThreadPool(RecordIOUtils.getThreadCount)
+  val threadPool = Executors.newFixedThreadPool(ThreadpoolUtils.getThreadCount)
   implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(threadPool)
 
   def start = {
-    val sortedDir = Paths.get(outputDir, WorkerState.memSortDirName).toString
-    PathUtils.createDirectoryIfNotExists(sortedDir)
-    
-    inMemorySort(sortedDir, RecordIOUtils.getChunkSize)
+    inMemorySort(sortedDir, ThreadpoolUtils.getChunkSize)
   }
   /**
    * In-memory sort of all input files
@@ -37,8 +33,8 @@ class MemorySortManager(inputDirs: Seq[String], outputDir: String) {
     
     println(s"[MergeSort] Found ${allFiles.size} input files to sort")
     
-    val threadCount = RecordIOUtils.getThreadCount
-    println(s"[MergeSort] Using $threadCount threads for sorting (max concurrent files: ${RecordIOUtils.getMaxConcurrentFiles} by ${SystemUtils.getRamMb} MB RAM)")
+    val threadCount = ThreadpoolUtils.getThreadCount
+    println(s"[MergeSort] Using $threadCount threads for sorting (max concurrent files: ${ThreadpoolUtils.getMaxConcurrentFiles})")
     
     val sortedFiles = new ConcurrentLinkedQueue[String]()
     

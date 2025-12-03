@@ -7,18 +7,13 @@ import scala.concurrent.{Future, ExecutionContext}
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.async.Async.{async, await}
-import utils.{PathUtils, RecordIOUtils}
+import utils.{PathUtils, RecordIOUtils, ThreadpoolUtils}
 import scala.annotation.tailrec
 import common.data.Data.{Record, getRecordOrdering, RECORD_SIZE}
 import java.util.NoSuchElementException
 import global.WorkerState
 
-class FileMergeManager(files: List[String], outputDir: String) {
-  files.foreach { file =>
-    println(s"[FileMergeManager] Input file: $file")
-  }
-  
-  val threadPool = Executors.newFixedThreadPool(RecordIOUtils.getThreadCount)
+  val threadPool = Executors.newFixedThreadPool(ThreadpoolUtils.getThreadCount)
   implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(threadPool)
 
   def start(subDirName: String) = {
