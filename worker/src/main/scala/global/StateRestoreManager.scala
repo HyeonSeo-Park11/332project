@@ -9,11 +9,11 @@ object StateRestoreManager {
     val stateFileName: String = "worker_state"
     implicit val outputSubDir: FileManager.OutputSubDir = FileManager.OutputSubDir(FileManager.stateRestoreDirName)
 
-    def isClean(): Boolean = {
+    def isClean(): Boolean = this.synchronized {
         !new File(FileManager.getFilePathFromOutputDir(stateFileName)).exists()
     }
 
-    def storeState(): Unit = {
+    def storeState(): Unit = this.synchronized {
         FileManager.createDirectoryIfNotExists(FileManager.getFilePathFromOutputDir(""))
 
         Using(new ObjectOutputStream(new FileOutputStream(FileManager.getFilePathFromOutputDir(stateFileName)))) { oos =>
@@ -22,7 +22,7 @@ object StateRestoreManager {
         }.get
     }
 
-    def restoreState() = {
+    def restoreState() = this.synchronized {
         assert(!isClean())
 
         Using(new ObjectInputStream(new FileInputStream(FileManager.getFilePathFromOutputDir(stateFileName)))) { ois =>
@@ -31,7 +31,7 @@ object StateRestoreManager {
         }.get
     }
 
-    def clear(): Unit = {
+    def clear(): Unit = this.synchronized {
         FileManager.delete(FileManager.getFilePathFromOutputDir(stateFileName))
     }
 }
