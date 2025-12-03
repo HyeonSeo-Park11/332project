@@ -1,15 +1,19 @@
-import io.grpc.ServerBuilder
+import java.nio.file.{Files, Paths}
+
 import scala.concurrent.{ExecutionContext, Await}
 import scala.concurrent.duration._
-import utils.{WorkerOptionUtils, PathUtils}
-import server.{WorkerServiceImpl, ShuffleServiceImpl}
-import global.WorkerState
-import worker.WorkerService.WorkerServiceGrpc
-import common.utils.SystemUtils
-import global.ConnectionManager
-import main.{RegisterManager, SampleManager, MemorySortManager, FileMergeManager, LabelingManager, SynchronizationManager, ShuffleManager, TerminationManager}
 import scala.async.Async.{async, await}
-import java.nio.file.Files
+
+import io.grpc.ServerBuilder
+
+import common.utils.SystemUtils
+import global.WorkerState
+import global.ConnectionManager
+import server.{WorkerServiceImpl, ShuffleServiceImpl}
+import worker.WorkerService.WorkerServiceGrpc
+import main.{RegisterManager, SampleManager, MemorySortManager, FileMergeManager, LabelingManager, SynchronizationManager, ShuffleManager, TerminationManager}
+import utils.WorkerOptionUtils
+import utils.FileManager
 import shuffle.Shuffle.ShuffleGrpc
 
 object Main extends App {
@@ -24,26 +28,28 @@ object Main extends App {
     (parts(0), parts(1).toInt)
   }
 
-  val invalidInputDirs = inputDirs.filter{ dir => !PathUtils.exists(dir) || !PathUtils.isDirectory(dir) }
+  val invalidInputDirs = inputDirs.filter{ dir => !Files.exists(Paths.get(dir)) || !Files.isDirectory(Paths.get(dir)) }
 
   if (invalidInputDirs.nonEmpty) {
     invalidInputDirs.foreach { dir =>
-      Console.err.println(s"Input directory does not exist or is not a directory: $dir(${PathUtils.toAbsolutePath(dir)})")
+      Console.err.println(s"Input directory does not exist or is not a directory: $dir")
     }
     sys.exit(1)
   }
 
-  PathUtils.createDirectoryIfNotExists(outputDir)
+  FileManager.createDirectoryIfNotExists(outputDir)
 
   WorkerState.setMasterAddr(masterIp, masterPort)
   WorkerState.setInputDirs(inputDirs)
   WorkerState.setOutputDir(outputDir)
+  FileManager.setInputDirs(inputDirs)
+  FileManager.setOutputDir(outputDir)
 
   val server = ServerBuilder
     .forPort(0)
     .maxInboundMessageSize(ConnectionManager.maxGrpcMessageSize)
     .addService(WorkerServiceGrpc.bindService(new WorkerServiceImpl(), ec))
-    .addService(ShuffleGrpc.bindService(new ShuffleServiceImpl(), ec))
+    .addService(ShuffleGrpc.bindService(new ShuffleServiceImpl(FileManager.labelingDirName), ec))
     .build()
 
   server.start()
@@ -55,17 +61,17 @@ object Main extends App {
 
     new SampleManager().start()
 
-    val files = await { new MemorySortManager(inputDirs, outputDir).start }
+    val files = await { new MemorySortManager(FileManager.memSortDirName).start }
 
     val (_, sortedFiles) = await {
       WorkerState.waitForAssignment.zip(
-        new FileMergeManager(files, outputDir).start(WorkerState.labelingDirName)
+        new FileMergeManager(FileManager.memSortDirName, FileManager.fileMergeDirName).start(files)
       )
     }
 
     val assignedRange = WorkerState.getAssignedRange.getOrElse(throw new RuntimeException("Assigned range is not available"))
 
-    val labeledFiles = await { new LabelingManager(sortedFiles, assignedRange, outputDir).start }
+    val labeledFiles = await { new LabelingManager(FileManager.fileMergeDirName, FileManager.labelingDirName, assignedRange).start(sortedFiles) }
 
     labeledFiles.foreach {
       case (workerId, fileList) =>
@@ -81,18 +87,11 @@ object Main extends App {
         println(s"[Shuffle][Planned] $workerIp files: [$fileNames]")
     }
 
-    val completedShufflePlans = await { new ShuffleManager().start(shufflePlans) }
+    val completedShufflePlans = await { new ShuffleManager(FileManager.labelingDirName, FileManager.shuffleDirName).start(shufflePlans) }
 
-    completedShufflePlans.foreach {
-      case (workerIp, fileList) =>
-        val fileNames = fileList.mkString(", ")
-        println(s"[Shuffle][Completed] $workerIp files: [$fileNames]")
-    }
+    println(s"[Shuffle][Completed] files: [${completedShufflePlans.mkString(", ")}]")
 
-    await { new FileMergeManager(
-      completedShufflePlans.flatMap(_._2).toList,
-      outputDir
-    ).start("final") }
+    val finalFiles = await { new FileMergeManager(FileManager.shuffleDirName, FileManager.finalDirName).start(completedShufflePlans) }
 
     await { new TerminationManager().shutdownServerSafely(server) }
   }
