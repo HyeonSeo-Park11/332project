@@ -176,7 +176,7 @@ class LabelingManager(sortedFiles: List[String], assignedRange: Map[(String, Int
   /**
    * Get first and last key from a file
    */
-  private def getFirstAndLastKeyFromFile(filePath: String): Record = {
+  private def getFirstAndLastKeyFromFile(filePath: String): (Key, Key) = {
     val path = Paths.get(filePath)
     val channel = FileChannel.open(path, StandardOpenOption.READ)
     try {
