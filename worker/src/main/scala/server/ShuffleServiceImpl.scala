@@ -11,12 +11,15 @@ import java.nio.channels.FileChannel
 import java.nio.ByteBuffer
 import io.grpc.stub.{StreamObserver, ServerCallStreamObserver}
 import java.util.concurrent.atomic.AtomicBoolean
+import utils.FileManager
+import utils.FileManager.InputSubDir
 
-class ShuffleServiceImpl(implicit ec: ExecutionContext) extends ShuffleGrpc.Shuffle {
+class ShuffleServiceImpl(inputSubDirName: String)(implicit ec: ExecutionContext) extends ShuffleGrpc.Shuffle {
+    implicit val inputSubDirNameImplicit: InputSubDir = InputSubDir(inputSubDirName)
     val chunkSize = 1024 * 1024 * 180
 
     override def downloadFile(request: DownloadRequest, responseObserver: StreamObserver[DownloadResponse]): Unit = {
-        val sourcePath = Paths.get(request.filename)
+        val sourcePath = Paths.get(FileManager.getFilePathFromInputDir(request.filename))
         val serverObserver = responseObserver.asInstanceOf[ServerCallStreamObserver[DownloadResponse]]
         val fileChannel = FileChannel.open(sourcePath, StandardOpenOption.READ)  // 파일 열기 실패 시 StatusException 발생
 

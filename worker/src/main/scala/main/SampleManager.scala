@@ -1,59 +1,114 @@
 package main
 
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executors
+import java.util.concurrent.{ConcurrentLinkedQueue, Executors, ExecutorService}
+import java.nio.file.{Files, Paths}
+import java.nio.file.StandardOpenOption
+import java.nio.channels.FileChannel
+import java.nio.ByteBuffer
+
 import scala.concurrent.ExecutionContext
-import master.MasterService.{SamplingServiceGrpc, SampleData}
-import global.ConnectionManager
 import scala.concurrent.Future
-import utils.SamplingUtils
-import master.MasterService.SampleData
-import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.async.Async.{async, await}
+import scala.util.Random
+import scala.util.Using
+import scala.async.Async.{async, await}
+import scala.jdk.CollectionConverters._
+
+import com.google.protobuf.ByteString
+
+import common.data.Data.{Key, RECORD_SIZE, KEY_SIZE}
 import common.utils.SystemUtils
-import global.WorkerState
+import master.MasterService.{SamplingServiceGrpc, SampleData}
+import master.MasterService.SampleData
+import global.ConnectionManager
+import utils.FileManager
 
 class SampleManager(implicit ec: ExecutionContext) {
   private val stub = SamplingServiceGrpc.stub(ConnectionManager.getMasterChannel())
+  val SAMPLE_SIZE = Math.min(100000, SystemUtils.getRamMb * 1024 * 1024 / RECORD_SIZE)  // Number of samples to collect per worker, total 1MB
+  val THREAD_NUM = Math.min(8, SystemUtils.getProcessorNum)
 
-  def start(): Future[Unit] = Future {
+  def start(): Future[Unit] = async {
     val workerIp = SystemUtils.getLocalIp.getOrElse {
       println("Failed to get local IP address")
       sys.exit(1)
     }
 
-    try {
-      val samples = SamplingUtils.sampleFromInputs(WorkerState.getInputDirs).getOrElse {
-        println("Warning: Sampling failed")
-        sys.exit(1)
-      }
-    
-      val success = {
-        val request = SampleData(
-          workerIp = workerIp,
-          keys = samples
-        )
+    val samples = await { sampleFromInputs }
+  
+    val request = SampleData(
+      workerIp = workerIp,
+      keys = samples
+    )
 
-        val responseFuture = stub.sampling(request)
-        
-        try {
-          val response = Await.result(responseFuture, 30.seconds)
-          response.success
-        } catch {
-          case e: Exception =>
-            println(s"Error sending samples to master: ${e.getMessage}")
-            e.printStackTrace()
-            false
+    val responseFuture = stub.sampling(request)
+    val success = await { responseFuture }.success
+  
+    if (success) {
+      println("Samples sent successfully. Waiting for range assignment...")
+    } else {
+      println("Failed to send samples to master")
+    }
+  }
+
+  /**
+   * Performs uniform sampling from input directories
+   * Strategy: Sample records from multiple files without loading entire files into memory
+   * 
+   * @param inputDirs Sequence of input directory paths
+   * @return Array of sampled 10-byte keys
+   */
+  def sampleFromInputs(implicit ec: ExecutionContext): Future[Array[Key]] = async {
+    val allFiles = FileManager.getInputFilePaths.map {
+      filePath => (filePath, FileManager.getFilesize(filePath) / RECORD_SIZE)
+    }.filter(_._2 > 0)
+
+    val random = new Random()
+    val randomFileIdxAndRecordIdx = List.fill(SAMPLE_SIZE.toInt) {
+      val fileIdx = random.nextInt(allFiles.size)
+      val (filePath, numRecords) = allFiles(fileIdx)
+      val recordIdx = random.nextInt(numRecords.toInt)
+      (filePath, recordIdx)
+    }.groupBy(_._1).mapValues(_.map(_._2).sorted).toMap
+
+    val results = new ConcurrentLinkedQueue[Key]()
+    implicit val gracefulExecutorReleasable: Using.Releasable[ExecutorService] = resource => {
+      resource.shutdown()
+    }
+
+    val futures = Using(Executors.newFixedThreadPool(THREAD_NUM)) { threadPool =>
+      implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(threadPool)
+      
+      randomFileIdxAndRecordIdx.map { case (filePath, recordIdxs) =>
+        async {
+          val file = Paths.get(filePath)
+          val channel = FileChannel.open(
+            file, 
+            StandardOpenOption.READ
+          )
+          
+          val buffer = ByteBuffer.allocate(KEY_SIZE)
+          recordIdxs.foreach { recordIdx =>
+            val position = recordIdx.toLong * RECORD_SIZE
+            try {
+              channel.read(buffer, position)
+              results.add(ByteString.copyFrom(buffer.array()))
+            } catch {
+              case e: Exception => 
+                println(s"Error reading record at index $recordIdx from file $filePath: ${e.getMessage}")
+            } finally {
+              buffer.clear()
+            }
+          }
         }
       }
-    
-      if (success) {
-        println("Samples sent successfully. Waiting for range assignment...")
-      } else {
-        println("Failed to send samples to master")
-      }
-    } catch {
-    case e: Exception =>
-        println(s"Error during sampling: ${e.getMessage}")
-        e.printStackTrace()
-    }
+
+    }.get
+
+    await { Future.sequence(futures) }
+    results.asScala.toArray
   }
 }
