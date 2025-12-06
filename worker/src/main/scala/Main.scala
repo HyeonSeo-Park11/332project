@@ -88,7 +88,6 @@ object Main extends App {
     val selfIndex = assignedRange.keys.map(_._1).toList.sorted.indexOf(SystemUtils.getLocalIp.get)
     val selfOrder = selfIndex + 1
     FileManager.mergeAllFiles(s"$outputDir/partition.$selfOrder", finalFiles, FileManager.finalDirName)
-    logger.info(s"[Completed] Final output file: ${s"$outputDir/partition.$selfOrder"}")
 
     await { new TerminationManager().shutdownServerSafely(server) }
 

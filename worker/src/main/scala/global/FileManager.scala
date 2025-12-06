@@ -238,5 +238,7 @@ object FileManager {
         }.get
       }
     }.get
+
+    logger.info(s"Creating Output Completed - Final output file: $outputPath")
   }
 }
