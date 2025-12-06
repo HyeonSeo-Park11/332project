@@ -56,7 +56,12 @@ object Main extends App {
 
   val mainWaiting = async {
     val masterFuture = async {
-      await { new RegisterManager().start(server.getPort) }
+      val isRegistered = await { new RegisterManager().start(server.getPort) }
+      if (!isRegistered) {
+        logger.error("Failed to register to master. Exiting...")
+        FileManager.deleteAllIntermedia
+        sys.exit(1)
+      }
 
       await { new SampleManager().start() }
 
@@ -85,7 +90,7 @@ object Main extends App {
 
     val finalFiles = await { new FileMergeManager(FileManager.shuffleDirName, FileManager.finalDirName).start(completedShufflePlans, WorkerState.shuffleMerge) }
     
-    val selfIndex = assignedRange.keys.map(_._1).toList.sorted.indexOf(SystemUtils.getLocalIp.get)
+    val selfIndex = assignedRange.keys.map(_._1).toList.sorted.indexOf(SystemUtils.getLocalIp)
     val selfOrder = selfIndex + 1
     FileManager.mergeAllFiles(s"$outputDir/partition.$selfOrder", finalFiles, FileManager.finalDirName)
 
