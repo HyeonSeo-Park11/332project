@@ -23,7 +23,7 @@ class ShuffleManager(inputSubDirName: String, outputSubDirName: String)(implicit
     implicit val outputSubDirNameImplicit: OutputSubDir = OutputSubDir(outputSubDirName)
     val maxTries = 10
 
-	def start(shufflePlans: Map[String, Seq[String]]): Future[List[String]] = async {  // TODO: make input as optional, if none, restore
+	def start(shufflePlans: Map[String, Seq[String]]): Future[List[List[String]]] = async {  // TODO: make input as optional, if none, restore
         val shufflePlansWithCompleted: Map[String, mutable.Map[String, Boolean]] = ShuffleState.getShufflePlans match {
             case Some(value) => value
             case None => {
@@ -58,7 +58,10 @@ class ShuffleManager(inputSubDirName: String, outputSubDirName: String)(implicit
             StateRestoreManager.storeState()
         }
 
-        shufflePlansWithCompleted.values.flatMap(_.keys).toList
+        shufflePlansWithCompleted.values.map(_.keys.toList.sortBy(name => {
+            val parts = name.split("-")
+            parts(parts.length - 1).toInt
+        })).toList
     }
 
     private def copyLocalFiles(fileList: Seq[String]): Unit = {

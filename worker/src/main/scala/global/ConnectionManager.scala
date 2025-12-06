@@ -7,7 +7,7 @@ object ConnectionManager {
     val maxGrpcMessageSize: Int = 1024 * 1024 * 1024  // 1GB
 
     private var masterChannel: ManagedChannel = _
-    private var workerChannels: mutable.Map[String, ManagedChannel] = mutable.Map()
+    private val workerChannels: mutable.Map[String, ManagedChannel] = mutable.Map()
 
     def createChannel(ip: String, port: Int): ManagedChannel = {
         ManagedChannelBuilder.forAddress(ip, port).maxInboundMessageSize(maxGrpcMessageSize).usePlaintext().build()

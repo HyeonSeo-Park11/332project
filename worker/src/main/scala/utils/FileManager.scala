@@ -162,19 +162,21 @@ object FileManager {
     }.get
   }
 
-  def move(oldFilePath: String, newFilePath: String): Unit = Files.move(Paths.get(oldFilePath), Paths.get(newFilePath), StandardCopyOption.ATOMIC_MOVE)
+  def link(oldFilePath: String, newFilePath: String): Unit = Files.createLink(Paths.get(newFilePath), Paths.get(oldFilePath))
 
-  def copy(oldFilePath: String, newFilePath: String): Unit = Files.copy(Paths.get(oldFilePath), Paths.get(newFilePath), StandardCopyOption.REPLACE_EXISTING)
+  def copy(oldFilePath: String, newFilePath: String): Unit = Files.copy(
+    Paths.get(oldFilePath),
+    Paths.get(newFilePath),
+    StandardCopyOption.REPLACE_EXISTING
+  )
 
   def delete(filePath: String): Unit = Files.deleteIfExists(Paths.get(filePath))
 
   def deleteAll(filePaths: Seq[String]): Unit = {
-    filePaths.foreach { filePath =>
-      delete(filePath)
-    }
+    filePaths.foreach { filename => Try { delete(filename) } }
   }
 
-  def deleteAllSubDir: Unit = {
+  def deleteAllIntermedia: Unit = {
     outputSubDirNames.map(_.value).foreach { subDirName =>
       outputDir.foreach { outDir =>
         val subDirPath = Paths.get(outDir, subDirName)

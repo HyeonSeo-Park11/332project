@@ -71,7 +71,8 @@ object Main extends App {
     val localFuture = async {
       val files = await { new MemorySortManager(FileManager.memSortDirName).start }
 
-      val sortedFiles = await { new FileMergeManager(FileManager.memSortDirName, FileManager.fileMergeDirName).start(files) }
+      val memSortedFiles = files.map(List(_))
+      val sortedFiles = await { new FileMergeManager(FileManager.memSortDirName, FileManager.fileMergeDirName).start(memSortedFiles, WorkerState.localMerge) }
 
       sortedFiles
     }
@@ -100,14 +101,16 @@ object Main extends App {
 
     println(s"[Shuffle][Completed] files: [${completedShufflePlans.mkString(", ")}]")
 
-    val finalFiles = await { new FileMergeManager(FileManager.shuffleDirName, FileManager.finalDirName).start(completedShufflePlans) }
-    FileManager.mergeAllFiles(s"$outputDir/sorted.bin", finalFiles, FileManager.finalDirName)
-    println(s"[Completed] Final output file: ${s"$outputDir/sorted.bin"}")
+    val finalFiles = await { new FileMergeManager(FileManager.shuffleDirName, FileManager.finalDirName).start(completedShufflePlans, WorkerState.shuffleMerge) }
+    
+    val selfIndex = assignedRange.keys.map(_._1).toList.sorted.indexOf(SystemUtils.getLocalIp.get)
+    val selfOrder = selfIndex + 1
+    FileManager.mergeAllFiles(s"$outputDir/partition.$selfOrder", finalFiles, FileManager.finalDirName)
+    println(s"[Completed] Final output file: ${s"$outputDir/partition.$selfOrder"}")
 
     await { new TerminationManager().shutdownServerSafely(server) }
 
-    FileManager.deleteAll(finalFiles)
-    FileManager.deleteAllSubDir
+    FileManager.deleteAllIntermedia
 
     StateRestoreManager.clear()
   }
