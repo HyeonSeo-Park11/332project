@@ -14,18 +14,23 @@ class RegisterServiceImpl(implicit ec: ExecutionContext) extends MasterService.R
   private val logger = LoggerFactory.getLogger(getClass)
 
   override def registerWorker(request: WorkerInfo): Future[RegisterWorkerResponse] = Future {
-    val faultOccured = MasterState.registerWorker(request)
-    ConnectionManager.registerWorkerChannel(request.ip, request.port)
-    if (faultOccured) {
-      MasterState.getRegisteredWorkers.filter(_._1 != request.ip).map { case (workerIp, _) => async {
-          val stub = WorkerService.RegisterServiceGrpc.stub(ConnectionManager.getWorkerChannel(workerIp))
-          await { stub.introduceNewWorker(new WorkerNetworkInfo(request.ip, request.port)) }
-        }.recover {
+    val (isRegistered, faultOccured) = MasterState.registerWorker(request)
+    if (!isRegistered) {
+      RegisterWorkerResponse(success = false)
+    }
+    else {
+      ConnectionManager.registerWorkerChannel(request.ip, request.port)
+      if (faultOccured) {
+        MasterState.getRegisteredWorkers.filter(_._1 != request.ip).map { case (workerIp, _) => async {
+            val stub = WorkerService.RegisterServiceGrpc.stub(ConnectionManager.getWorkerChannel(workerIp))
+            await { stub.introduceNewWorker(new WorkerNetworkInfo(request.ip, request.port)) }
+          }.recover {
           case e: Throwable =>
             logger.info("introduceNewWorker call from master to worker was failed: ", e)
         }
+        }
       }
+      RegisterWorkerResponse(success = true)
     }
-    RegisterWorkerResponse(success = true)
   }
 }
