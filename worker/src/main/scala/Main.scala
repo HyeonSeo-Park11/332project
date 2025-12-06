@@ -81,15 +81,7 @@ object Main extends App {
 
     val shufflePlans =  await { new SynchronizationManager(labeledFiles).start() }
 
-    shufflePlans.foreach {
-      case (workerIp, fileList) =>
-        val fileNames = fileList.mkString(", ")
-        logger.info(s"[Shuffle][Planned] $workerIp files: [$fileNames]")
-    }
-
     val completedShufflePlans = await { new ShuffleManager(FileManager.labelingDirName, FileManager.shuffleDirName).start(shufflePlans) }
-
-    logger.info(s"[Shuffle][Completed] files: [${completedShufflePlans.mkString(", ")}]")
 
     val finalFiles = await { new FileMergeManager(FileManager.shuffleDirName, FileManager.finalDirName).start(completedShufflePlans, WorkerState.shuffleMerge) }
     
