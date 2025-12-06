@@ -24,9 +24,10 @@ object FileManager {
   val labelingDirName = "labeled"
   val shuffleDirName = "shuffled"
   val finalDirName = "final"
-  private val inputSubDirNames = Set(memSortDirName, fileMergeDirName, labelingDirName, shuffleDirName, finalDirName)
+  val stateRestoreDirName = "state"
+  private val inputSubDirNames = Set(memSortDirName, fileMergeDirName, labelingDirName, shuffleDirName, finalDirName, stateRestoreDirName)
                                   .map(InputSubDir(_))
-  private val outputSubDirNames = Set(memSortDirName, fileMergeDirName, labelingDirName, shuffleDirName, finalDirName)
+  private val outputSubDirNames = Set(memSortDirName, fileMergeDirName, labelingDirName, shuffleDirName, finalDirName, stateRestoreDirName)
                                   .map(OutputSubDir(_))
 
   private var inputDirs: Seq[String] = Seq.empty
@@ -162,6 +163,8 @@ object FileManager {
   }
 
   def move(oldFilePath: String, newFilePath: String): Unit = Files.move(Paths.get(oldFilePath), Paths.get(newFilePath), StandardCopyOption.ATOMIC_MOVE)
+
+  def copy(oldFilePath: String, newFilePath: String): Unit = Files.copy(Paths.get(oldFilePath), Paths.get(newFilePath), StandardCopyOption.REPLACE_EXISTING)
 
   def delete(filePath: String): Unit = Files.deleteIfExists(Paths.get(filePath))
 

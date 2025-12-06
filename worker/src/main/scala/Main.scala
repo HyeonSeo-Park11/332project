@@ -15,6 +15,9 @@ import main.{RegisterManager, SampleManager, MemorySortManager, FileMergeManager
 import utils.WorkerOptionUtils
 import utils.FileManager
 import shuffle.Shuffle.ShuffleGrpc
+import global.StateRestoreManager
+import scala.concurrent.Future
+import state.SampleState
 
 object Main extends App {
   implicit val ec: ExecutionContext = ExecutionContext.global
@@ -39,9 +42,13 @@ object Main extends App {
 
   FileManager.createDirectoryIfNotExists(outputDir)
 
-  WorkerState.setMasterAddr(masterIp, masterPort)
+  ConnectionManager.initMasterChannel(masterIp, masterPort)
   FileManager.setInputDirs(inputDirs)
   FileManager.setOutputDir(outputDir)
+
+  if (!StateRestoreManager.isClean()) {
+    StateRestoreManager.restoreState()
+  }
 
   val server = ServerBuilder
     .forPort(0)
@@ -53,22 +60,26 @@ object Main extends App {
   server.start()
 
   val mainWaiting = async {
-    ConnectionManager.initMasterChannel(masterIp, masterPort)
+    val masterFuture = async {
+      await { new RegisterManager().start(server.getPort) }
 
-    new RegisterManager().start(server.getPort)
+      await { new SampleManager().start() }
 
-    new SampleManager().start()
-
-    val files = await { new MemorySortManager(FileManager.memSortDirName).start }
-
-    val (_, sortedFiles) = await {
-      WorkerState.waitForAssignment.zip(
-        new FileMergeManager(FileManager.memSortDirName, FileManager.fileMergeDirName).start(files)
-      )
+      await { SampleState.waitForAssignment() }
     }
 
-    val assignedRange = WorkerState.getAssignedRange.getOrElse(throw new RuntimeException("Assigned range is not available"))
+    val localFuture = async {
+      val files = await { new MemorySortManager(FileManager.memSortDirName).start }
 
+      val sortedFiles = await { new FileMergeManager(FileManager.memSortDirName, FileManager.fileMergeDirName).start(files) }
+
+      sortedFiles
+    }
+
+    val (_, sortedFiles) = await { masterFuture.zip(localFuture) }
+
+    val assignedRange = SampleState.getAssignedRange.getOrElse(throw new RuntimeException("Assigned range is not available"))
+    ConnectionManager.initWorkerChannels(assignedRange.keys.toSeq)
     val labeledFiles = await { new LabelingManager(FileManager.fileMergeDirName, FileManager.labelingDirName, assignedRange).start(sortedFiles) }
 
     labeledFiles.foreach {
@@ -93,10 +104,12 @@ object Main extends App {
     FileManager.mergeAllFiles(s"$outputDir/sorted.bin", finalFiles, FileManager.finalDirName)
     println(s"[Completed] Final output file: ${s"$outputDir/sorted.bin"}")
 
+    await { new TerminationManager().shutdownServerSafely(server) }
+
     FileManager.deleteAll(finalFiles)
     FileManager.deleteAllSubDir
 
-    await { new TerminationManager().shutdownServerSafely(server) }
+    StateRestoreManager.clear()
   }
 
   Await.result(mainWaiting, Duration.Inf)

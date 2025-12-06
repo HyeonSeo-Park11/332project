@@ -3,73 +3,31 @@ package global
 import scala.concurrent.{Future, Promise}
 import common.data.Data.Key
 import com.google.protobuf.ByteString
+import state.{SampleState, LabelingState, SynchronizationState, TerminationState}
+import state.ShuffleState
 
-// Worker Singleton
+trait Restorable {
+  def restoreTransient(): Unit
+}
+
+// get lock on WorkerState when access any data!
+
+class WorkerState extends Serializable {
+  val sample: SampleState = new SampleState()
+  val labeling: LabelingState = new LabelingState()
+  val synchronization: SynchronizationState = new SynchronizationState()
+  val shuffle: ShuffleState = new ShuffleState()
+  val termination: TerminationState = new TerminationState()
+
+  def states: Seq[Restorable] = Seq(sample, labeling, synchronization, shuffle, termination)
+}
+
 object WorkerState {
-  val diskIoLock = new Object()
+  var instance: WorkerState = new WorkerState()
 
-  private var masterIp: Option[String] = None
-  private var masterPort: Option[Int] = None
-  private var assignedRange: Option[Map[(String, Int), (Key, Key)]] = None
-  private val assignPromise = Promise[Unit]()
-  private var assignedFiles: Map[(String, Int), List[String]] = Map.empty
-  private var shufflePlans = Map[String, Seq[String]]()
-  private val shuffleStartPromise: Promise[Unit] = Promise[Unit]()
-  private val terminatePromise: Promise[Unit] = Promise[Unit]()
-
-  def setMasterAddr(ip: String, port: Int): Unit = this.synchronized {
-    masterIp = Some(ip)
-    masterPort = Some(port)
-  }
-
-  def getMasterAddr: Option[(String, Int)] = this.synchronized {
-    for {
-      ip <- masterIp
-      port <- masterPort
-    } yield (ip, port)
-  }
-
-  def setAssignedRange(assignments: Map[(String, Int), (Key, Key)]): Unit = this.synchronized {
-    assignedRange = Some(assignments)
-    assignPromise.trySuccess(())
-  }
-
-  def getAssignedRange: Option[Map[(String, Int), (Key, Key)]] = this.synchronized {
-    assignedRange
-  }
-
-  def waitForAssignment(): Future[Unit] = {
-    assignPromise.future
-  }
-  
-  def setAssignedFiles(files: Map[(String, Int), List[String]]): Unit = this.synchronized {
-    assignedFiles = files
-  }
-
-  def getAssignedFiles: Map[(String, Int), List[String]] = this.synchronized {
-    assignedFiles
-  }
-
-  def addShufflePlan(senderIp: String, files: Seq[String]): Unit = this.synchronized {
-    val existing = shufflePlans.getOrElse(senderIp, Seq.empty)
-    shufflePlans += senderIp -> (existing ++ files)
-  }
-
-  def getShufflePlans: Map[String, Seq[String]] = this.synchronized {
-    shufflePlans
-  }
-
-  def markShuffleStarted(): Unit = this.synchronized {
-    shuffleStartPromise.trySuccess(())
-  }
-
-  def waitForShuffleCommand: Future[Unit] = shuffleStartPromise.future
-
-  def hasReceivedShuffleCommand: Boolean = shuffleStartPromise.isCompleted
-
-  def waitForTerminate: Future[Unit] = terminatePromise.future
-
-  def markTerminated(): Unit = this.synchronized {
-    terminatePromise.trySuccess(())
-  }
+  def sample = instance.sample
+  def labeling = instance.labeling
+  def synchronization = instance.synchronization
+  def shuffle = instance.shuffle
+  def terminate = instance.termination
 }

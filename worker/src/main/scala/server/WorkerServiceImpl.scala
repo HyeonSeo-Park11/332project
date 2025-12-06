@@ -1,11 +1,15 @@
 package server
 
 import scala.concurrent.{ExecutionContext, Future}
-import worker.WorkerService.{WorkerServiceGrpc, WorkersRangeAssignment, RangeAssignment, WorkerNetworkInfo, AssignRangesResponse, WorkerRangeAssignment, FileListMessage, FileListAck, StartShuffleCommand, StartShuffleAck, TerminateCommand, TerminateAck}
+import worker.WorkerService.{WorkerServiceGrpc, WorkersRangeAssignment, RangeAssignment, WorkerNetworkInfo, AssignRangesResponse, WorkerRangeAssignment, FileListMessage, FileListAck, StartShuffleCommand, StartShuffleAck, TerminateCommand, TerminateAck, IntroduceAck}
 import io.grpc.{Status, StatusException}
 import java.math.BigInteger
 import global.WorkerState
 import global.ConnectionManager
+import state.SampleState
+import state.SynchronizationState
+import state.TerminationState
+import global.StateRestoreManager
 
 class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc.WorkerService {
   override def assignRanges(request: WorkersRangeAssignment): Future[AssignRangesResponse] = {
@@ -23,9 +27,9 @@ class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc
     }.toMap
 
     // Store the assigned range in the Worker singleton
-    WorkerState.setAssignedRange(workersRangeAssignment)
-
-    ConnectionManager.initWorkerChannels(workersRangeAssignment.keys.toSeq)
+    SampleState.setAssignedRange(workersRangeAssignment)
+    StateRestoreManager.storeState()
+    SampleState.markAssigned()
 
     workersRangeAssignment.foreach {
       // Print assigned ranges for debugging
@@ -49,7 +53,8 @@ class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc
   override def deliverFileList(request: FileListMessage): Future[FileListAck] = Future {
     val senderIp = request.senderIp    
     val files = request.files
-    WorkerState.addShufflePlan(senderIp, files)
+    SynchronizationState.setShufflePlan(senderIp, files)
+    StateRestoreManager.storeState()
 
     // for debugging
     val fileNames = files.mkString(", ")
@@ -60,20 +65,27 @@ class WorkerServiceImpl(implicit ec: ExecutionContext) extends WorkerServiceGrpc
   }
 
   override def startShuffle(request: StartShuffleCommand): Future[StartShuffleAck] = {
-    if (!WorkerState.hasReceivedShuffleCommand) {
+    if (!SynchronizationState.hasReceivedShuffleCommand) {
       println(s"Received shuffle start command. Reason: ${request.reason}")
     }
     /*
     By marking shuffleStartPromise to success, 
     unblock any waiting synchronization manager.
     */ 
-    WorkerState.markShuffleStarted()
+    SynchronizationState.setShuffleStarted(true)
+    StateRestoreManager.storeState()
+    SynchronizationState.markShuffleStarted()
 
     Future.successful(StartShuffleAck(success = true))
   }
 
   override def terminate(request: TerminateCommand): Future[TerminateAck] = Future {
-    WorkerState.markTerminated()
+    TerminationState.markTerminated()
     TerminateAck(success = true)
+  }
+
+  override def introduceNewWorker(request: WorkerNetworkInfo): Future[IntroduceAck] = Future {
+    ConnectionManager.setWorkerChannel(request.ip, request.port)
+    IntroduceAck(success = true)
   }
 }

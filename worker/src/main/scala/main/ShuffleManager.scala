@@ -11,7 +11,12 @@ import utils.FileManager
 import io.grpc.stub.{StreamObserver, ClientCallStreamObserver, ClientResponseObserver}
 import java.nio.channels.FileChannel
 import common.utils.SystemUtils
+import global.GlobalLock
+import common.utils.RetryUtils.retry
 import utils.FileManager.{InputSubDir, OutputSubDir}
+import global.StateRestoreManager
+import scala.collection.mutable
+import state.ShuffleState
 
 class ShuffleManager(inputSubDirName: String, outputSubDirName: String)(implicit ec: ExecutionContext) {
     implicit val inputSubDirNameImplicit: InputSubDir = InputSubDir(inputSubDirName)
@@ -19,23 +24,49 @@ class ShuffleManager(inputSubDirName: String, outputSubDirName: String)(implicit
     val maxTries = 10
 
 	def start(shufflePlans: Map[String, Seq[String]]): Future[List[String]] = async {  // TODO: make input as optional, if none, restore
-        val selfIp = SystemUtils.getLocalIp.get
-        FileManager.createDirectoryIfNotExists(FileManager.getFilePathFromOutputDir(""))
-
-        val workerFutures = shufflePlans.map {
-            case (workerIp, fileList) if workerIp != selfIp => processFilesSequentially(workerIp, fileList)
-            case (workerIp, fileList) => Future.successful(moveLocalFiles(fileList))
+        val shufflePlansWithCompleted: Map[String, mutable.Map[String, Boolean]] = ShuffleState.getShufflePlans match {
+            case Some(value) => value
+            case None => {
+                val newShufflePlans = shufflePlans.view
+                    .mapValues(seq => mutable.Map(seq.map(_ -> false): _*)).toMap  // false 추가해서 map of map으로 변환
+                ShuffleState.setShufflePlans(newShufflePlans)
+                StateRestoreManager.storeState()
+                newShufflePlans
+            }
         }
-        await { Future.sequence(workerFutures) }
-        shufflePlans.values.flatten.toList
+
+        if (ShuffleState.isShuffleCompleted) {
+            println("[StateRestore] Skip shuffle")
+        } else {
+            val shufflePlansToProcess: Seq[(String, Seq[String])] = shufflePlansWithCompleted.view
+                .mapValues(_.filter(_._2 == false).keys.toSeq).toSeq  // false인것만 seq of seq로 변환
+
+            val skippedFileNum = shufflePlansWithCompleted.values.flatMap(_.keys).size - shufflePlansToProcess.flatMap(_._2).size
+            if (skippedFileNum != 0) println(s"[StateRestore] Skip $skippedFileNum files at shuffle")
+
+            val selfIp = SystemUtils.getLocalIp.get
+
+            FileManager.createDirectoryIfNotExists(FileManager.getFilePathFromOutputDir(""))
+
+            val workerFutures = shufflePlansToProcess.map {
+                case (workerIp, fileList) if workerIp != selfIp => processFilesSequentially(workerIp, fileList)
+                case (workerIp, fileList) => Future.successful(copyLocalFiles(fileList))
+            }
+            await { Future.sequence(workerFutures) }
+
+            ShuffleState.completeShuffle()
+            StateRestoreManager.storeState()
+        }
+
+        shufflePlansWithCompleted.values.flatMap(_.keys).toList
     }
 
-    private def moveLocalFiles(fileList: Seq[String]): Unit = {
+    private def copyLocalFiles(fileList: Seq[String]): Unit = {
         fileList.foreach { filename =>
             println(s"[Local Shuffle] Moving file: $filename")
             val filePath = FileManager.getFilePathFromInputDir(filename)
             val newFilePath = FileManager.getFilePathFromOutputDir(filename)
-            FileManager.move(filePath, newFilePath)
+            FileManager.copy(filePath, newFilePath)
         }
     }
 
@@ -44,7 +75,11 @@ class ShuffleManager(inputSubDirName: String, outputSubDirName: String)(implicit
             case Nil => ()
             case head :: tail => {
                 println(s"Processing file [$workerIp, $head]")
-                await { processFileWithRetry(workerIp, head) }
+                await { retry { processFile(workerIp, head) } }
+
+                ShuffleState.completeShufflePlanFile(workerIp, head)
+                StateRestoreManager.storeState()
+
                 await { processFilesSequentially(workerIp, tail) }
             }
         }
@@ -81,7 +116,7 @@ class ShuffleManager(inputSubDirName: String, outputSubDirName: String)(implicit
             }
 
             override def onNext(response: DownloadResponse): Unit = {
-                WorkerState.diskIoLock.synchronized {
+                GlobalLock.diskIoLock.synchronized {
                     blocking {
                         val writeBuffer = response.data.asReadOnlyByteBuffer()
                         while (writeBuffer.hasRemaining) {
@@ -114,15 +149,5 @@ class ShuffleManager(inputSubDirName: String, outputSubDirName: String)(implicit
         }
 
         promise.future
-    }
-
-    private def processFileWithRetry(workerIp: String, filename: String, tries: Int = 1): Future[Unit] = {
-        processFile(workerIp, filename).recoverWith {
-            case _ if tries < maxTries => {  // 방금 시도한게 n번째 시도이면 더이상 시도하지 않음
-                println(s"Retrying [$workerIp, $filename], attempt #$tries")
-                blocking { Thread.sleep(math.pow(2, tries).toLong * 1000) }
-                processFileWithRetry(workerIp, filename, tries + 1)
-            }
-        }
     }
 }

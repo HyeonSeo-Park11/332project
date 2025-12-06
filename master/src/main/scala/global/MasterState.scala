@@ -11,6 +11,7 @@ object MasterState {
   private var workersNum: Int = -1
   private var registeredWorkers = Map[String, WorkerInfo]()
   private var samples = Map[String, Seq[Key]]()  // workerIp -> sampled keys
+  private var calculateRangesStarted = false
   private var ranges = Map[(String, Int), Record]()  // (start, end) for each worker
   private var syncCompletedWorkers = Set[String]()
   private var shuffleStarted = false
@@ -26,26 +27,21 @@ object MasterState {
     workersNum
   }
 
+  // returns whether it was duplicated (i.e. fault occured)
   def registerWorker(request: WorkerInfo): Boolean = this.synchronized {
     val workerIp = request.ip
-    if (registeredWorkers.size == workersNum) {
-      if (!registeredWorkers.contains(workerIp)) false
-      else {
-        registeredWorkers += (workerIp -> request)
-        println(s"Fault detected! Re-register worker($workerIp:${request.port})")
-        println(registeredWorkers.keys.mkString(", "))
-
-        true
-      }
-    }
-    else {
-      val previouslyFull = registeredWorkers.size == workersNum
+    if (registeredWorkers.contains(workerIp)) {
+      println(s"Fault detected! Re-register worker($workerIp:${request.port})")
+      println(registeredWorkers.keys.mkString(", "))
       registeredWorkers += (workerIp -> request)
-      if (!previouslyFull && registeredWorkers.size == workersNum) {
+      true
+    } else {
+      registeredWorkers += (workerIp -> request)
+      if (registeredWorkers.size == workersNum) {
+        println("all worker registered")
         println(registeredWorkers.keys.mkString(", "))
       }
-
-      true
+      false
     }
   }
 
@@ -62,6 +58,14 @@ object MasterState {
   }
 
   def getSampleSize: Int = this.synchronized { samples.size }
+
+  def tryStartCalculateRanges(): Boolean = this.synchronized {
+    if (calculateRangesStarted) false
+    else {
+      calculateRangesStarted = true
+      true
+    }
+  }
 
   def calculateRanges(): Unit = this.synchronized {
     implicit val ordering = getKeyOrdering
