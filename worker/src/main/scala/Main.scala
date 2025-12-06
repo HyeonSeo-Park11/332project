@@ -102,8 +102,11 @@ object Main extends App {
     println(s"[Shuffle][Completed] files: [${completedShufflePlans.mkString(", ")}]")
 
     val finalFiles = await { new FileMergeManager(FileManager.shuffleDirName, FileManager.finalDirName).start(completedShufflePlans, WorkerState.shuffleMerge) }
-    FileManager.mergeAllFiles(s"$outputDir/sorted.bin", finalFiles, FileManager.finalDirName)
-    println(s"[Completed] Final output file: ${s"$outputDir/sorted.bin"}")
+    
+    val selfIndex = assignedRange.keys.map(_._1).toList.sorted.indexOf(SystemUtils.getLocalIp.get)
+    val selfOrder = selfIndex + 1
+    FileManager.mergeAllFiles(s"$outputDir/partition.$selfOrder", finalFiles, FileManager.finalDirName)
+    println(s"[Completed] Final output file: ${s"$outputDir/partition.$selfOrder"}")
 
     await { new TerminationManager().shutdownServerSafely(server) }
 
