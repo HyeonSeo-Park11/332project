@@ -1,5 +1,6 @@
 package server
 
+import org.slf4j.LoggerFactory
 import scala.concurrent.{ExecutionContext, Future}
 import master.MasterService.{WorkerInfo, RegisterWorkerResponse, RegisterServiceGrpc}
 import global.{MasterState, ConnectionManager}
@@ -9,6 +10,8 @@ import worker.WorkerService.WorkerNetworkInfo
 import worker.WorkerService.{IntroduceAck => logger}
 
 class RegisterServiceImpl(implicit ec: ExecutionContext) extends RegisterServiceGrpc.RegisterService {
+  private val logger = LoggerFactory.getLogger(getClass)
+
   override def registerWorker(request: WorkerInfo): Future[RegisterWorkerResponse] = Future {
     val faultOccured = MasterState.registerWorker(request)
     ConnectionManager.registerWorkerChannel(request.ip, request.port)
@@ -18,7 +21,7 @@ class RegisterServiceImpl(implicit ec: ExecutionContext) extends RegisterService
           await { stub.introduceNewWorker(new WorkerNetworkInfo(request.ip, request.port)) }
         }.recover {
           case e: Throwable =>
-            println("introduceNewWorker call from master to worker was failed: ", e)
+            logger.info("introduceNewWorker call from master to worker was failed: ", e)
         }
       }
     }
