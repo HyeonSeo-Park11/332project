@@ -44,13 +44,13 @@ class LabelingManager(inputSubDirName: String, outputSubDirName: String, assigne
    * @return Map of (workerIp, workerPort) -> List[filePath]
    */
   private def assignFilesToWorkers(files: List[String]): Future[Map[(String, Int), List[String]]] = async {
-    logger.info(s"[FileAssignment] Starting file assignment with ${files.size} sorted files")
+    logger.info(s"Starting file assignment with ${files.size} sorted files")
     
     // Sort workers by start key
     implicit val cp = getRecordOrdering
     val sortedWorkers = assignedRange.toList.sorted
     
-    logger.info(s"[FileAssignment] Worker ranges (sorted):")
+    logger.info(s"Worker ranges (sorted):")
     sortedWorkers.foreach { case ((ip, port), (start, end)) =>
       logger.info(s"  $ip:$port -> [${new java.math.BigInteger(1, start.toByteArray()).toString(16)}, ${new java.math.BigInteger(1, end.toByteArray()).toString(16)})")
     }
@@ -78,7 +78,7 @@ class LabelingManager(inputSubDirName: String, outputSubDirName: String, assigne
         case (currentFile @ (filename, fileStartKey, fileEndKey)) :: restFiles =>
           val (workerIp, _) = workerId
           val filePath = FileManager.getFilePathFromInputDir(filename)
-          logger.info(s"[FileAssignment]   Checking file: $filename")
+          logger.info(s"Checking file: $filename")
           
           // Check if file's end key is within [rangeStart, rangeEnd)
           val fileEndInRange = comparator.compare(fileEndKey, rangeStart) >= 0 && 
@@ -91,7 +91,7 @@ class LabelingManager(inputSubDirName: String, outputSubDirName: String, assigne
             val newFilePath = FileManager.getFilePathFromOutputDir(newFilename)
             
             FileManager.copy(filePath, newFilePath)
-            logger.info(s"[FileAssignment]   ✓ Renamed entire file to: $newFilename")
+            logger.info(s"✓ Renamed entire file to: $newFilename")
             
             val newAssignments = assignments.updated(workerId, newFilename :: assignments.getOrElse(workerId, List.empty))
             
@@ -105,7 +105,7 @@ class LabelingManager(inputSubDirName: String, outputSubDirName: String, assigne
             
             if (rangeEndInFile) {
               // Split file at rangeEnd
-              logger.info(s"[FileAssignment]   Splitting file at rangeEnd...")
+              logger.info(s"Splitting file at rangeEnd...")
               
               // Load file into memory and find split point
               val count = FileManager.getFilesize(filePath) / RECORD_SIZE
@@ -121,7 +121,7 @@ class LabelingManager(inputSubDirName: String, outputSubDirName: String, assigne
               val newFilename = s"$from-$workerIp-$fileNum"
               val newFilePath = FileManager.getFilePathFromOutputDir(newFilename)
               FileManager.writeRecords(newFilePath, part1Records)
-              logger.info(s"[FileAssignment]   ✓ Created part1: $newFilename (${part1Records.length} records)")
+              logger.info(s"✓ Created part1: $newFilename (${part1Records.length} records)")
               
               val newAssignments = assignments.updated(workerId, newFilename :: assignments.getOrElse(workerId, List.empty))
               
@@ -132,14 +132,14 @@ class LabelingManager(inputSubDirName: String, outputSubDirName: String, assigne
               
               val remainingStartKey = part2Records.head._1
               val remainingEndKey = part2Records.last._1
-              logger.info(s"[FileAssignment]   ✓ Created part2: $remainingFilename (${part2Records.length} records) - pushed to front")
+              logger.info(s"✓ Created part2: $remainingFilename (${part2Records.length} records) - pushed to front")
 
               // Return remaining files with part2 prepended, and stop processing for this worker
               ((remainingFilename, remainingStartKey, remainingEndKey) :: restFiles, newAssignments)
               
             } else {
               // File is completely beyond this worker's range
-              logger.info(s"[FileAssignment]   File is beyond worker's range - pushed back")
+              logger.info(s"File is beyond worker's range - pushed back")
               (files, assignments)
             }
           }
@@ -149,12 +149,12 @@ class LabelingManager(inputSubDirName: String, outputSubDirName: String, assigne
     val finalAssignments = sortedWorkers.foldLeft((fileMetadata, Map.empty[(String, Int), List[String]])) {
       case ((files, assignments), (workerId, (rangeStart, rangeEnd))) =>
         val (remainingFiles, newAssignments) = processFiles(workerId, rangeStart, rangeEnd, files, assignments)
-        logger.info(s"[FileAssignment] Processing worker ${workerId._1}")
+        logger.info(s"Processing worker ${workerId._1}")
         (remainingFiles, newAssignments)
     }
     val result = finalAssignments._2.map { case (k, v) => k -> v.reverse }
     
-    logger.info(s"[FileAssignment] Assignment complete:")
+    logger.info(s"Assignment complete:")
     result.foreach { case ((ip, port), files) =>
       logger.info(s"  $ip:$port -> ${files.size} files")
     }
