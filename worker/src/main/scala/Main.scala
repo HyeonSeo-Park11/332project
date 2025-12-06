@@ -71,7 +71,7 @@ object Main extends App {
     val localFuture = async {
       val files = await { new MemorySortManager(FileManager.memSortDirName).start }
 
-      val sortedFiles = await { new FileMergeManager(FileManager.memSortDirName, FileManager.fileMergeDirName).start(files) }
+      val sortedFiles = await { new FileMergeManager(FileManager.memSortDirName, FileManager.fileMergeDirName).start(files, WorkerState.localMerge) }
 
       sortedFiles
     }

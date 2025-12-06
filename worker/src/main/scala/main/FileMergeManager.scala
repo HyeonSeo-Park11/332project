@@ -12,6 +12,10 @@ import scala.annotation.tailrec
 import common.data.Data.{Record, getRecordOrdering, RECORD_SIZE}
 import utils.{ThreadpoolUtils, FileManager}
 import utils.FileManager.{InputSubDir, OutputSubDir}
+import java.nio.file.Files
+import java.nio.file.Paths
+import state.FileMergeState
+import global.StateRestoreManager
 
 class FileMergeManager(inputSubDirName: String, outputSubDirName: String) {
   val threadPool = Executors.newFixedThreadPool(ThreadpoolUtils.getThreadCount)
@@ -19,16 +23,29 @@ class FileMergeManager(inputSubDirName: String, outputSubDirName: String) {
   implicit val inputSubDir: InputSubDir = InputSubDir(inputSubDirName)
   implicit val outputSubDir: OutputSubDir = OutputSubDir(outputSubDirName)
 
-  def start(files: List[String]) = {
+  def start(files: List[String], state: FileMergeState) = {
+    // Local Merge와 Final Merge 두 개에서 이 Manager가 사용되기 떄문에 state를 인자로 받아야 한다.
+    implicit val mergeState: FileMergeState = state
     FileManager.createDirectoryIfNotExists(FileManager.getFilePathFromOutputDir(""))
-    val filenames = files.map { filename => {
-      val oldFilePath = FileManager.getFilePathFromInputDir(filename)
-      val newFilename = FileManager.getRandomFilename
-      val newFilePath = FileManager.getFilePathFromOutputDir(newFilename)
-      FileManager.move(oldFilePath, newFilePath)
-      newFilename
-    }}
-    twoWayMergeSort(filenames)
+    
+    if (FileMergeState.getCurrentFileLists.isEmpty) {
+      val filenames = files.map { filename =>
+        val newFilename = FileManager.getRandomFilename
+        val oldFilePath = FileManager.getFilePathFromInputDir(filename)
+        val newFilePath = FileManager.getFilePathFromOutputDir(newFilename)
+        
+        FileManager.copy(oldFilePath, newFilePath)
+        List(newFilename)
+      }
+
+      FileMergeState.setCurrentFileLists(filenames)
+      FileMergeState.setRound(1)
+      StateRestoreManager.storeState()
+
+      FileManager.deleteAll(files.map(FileManager.getFilePathFromInputDir))
+    }
+
+    twoWayMergeSort
   }
 
   /**
@@ -48,67 +65,86 @@ class FileMergeManager(inputSubDirName: String, outputSubDirName: String) {
    *          Result: [[e,f,g,h]]
    * After this round, files in [e,f,g,h] are guaranteed to be sorted in order
    */
-  private def twoWayMergeSort(files: List[String]): Future[List[String]] = async {
-    // Initialize: each file is its own list
-    val fileLists: List[List[String]] = files.map(f => List(f))
-    
-    // Calculate number of merge rounds needed
-    val totalRounds = Math.ceil(Math.log(fileLists.size) / Math.log(2)).toInt
-    println(s"[MergeSort] Total merge rounds needed: $totalRounds")
-
-    val finalListsFuture = (1 to totalRounds).foldLeft(Future.successful(fileLists)) {
-      (prevFuture, round) => async {
-        val lists = await { prevFuture }
-        
-        println(s"[MergeSort] Starting merge round $round/$totalRounds with ${lists.size} file lists")
-        
-        // Pair up file lists
-        // [[1],[2],[3],[4]] -> [([1],[3]), ([2],[4])]
-        val firstHalf = lists.take(lists.size / 2)
-        val secondHalf = lists.drop(lists.size / 2)
-        val listPairs = firstHalf.zip(secondHalf)
-        
-        // Handle remaining list if odd number
-        val remainingList = if (lists.size % 2 == 1) {
-          Some(lists.last)
-        } else {
-          None
-        }
-        
-        // For each pair of lists, merge all files sequentially
-        val nextFileLists = new ConcurrentLinkedQueue[List[String]]()
-        
-        val futures = listPairs.toList.map { case (list1, list2) =>
-          async {
-            val threadId = Thread.currentThread().getName
-            println(s"[MergeSort-Round$round][$threadId] Merging list pair: ${list1.size} files + ${list2.size} files")
-            val outputFiles = mergeFileLists(list1, list2, threadId, round)
-            
-            nextFileLists.add(outputFiles)
-            println(s"[MergeSort-Round$round][$threadId] Completed merge: ${outputFiles.size} output files")
-          }
-        }
-
-        await { Future.sequence(futures) }
-        
-        remainingList.foreach { list =>
-          nextFileLists.add(list.map { file =>
-            val oldFilePath = FileManager.getFilePathFromOutputDir(file)
-            val newFilename = FileManager.getRandomFilename
-            val newFilePath = FileManager.getFilePathFromOutputDir(newFilename)
-            FileManager.move(oldFilePath, newFilePath)
-            newFilename
-          })
-        }
-        
-        nextFileLists.asScala.toList
-      }
+  private def twoWayMergeSort(implicit state: FileMergeState): Future[List[String]] = async {
+    require {
+      FileMergeState.getCurrentFileLists.isDefined &&
+      FileMergeState.getRound >= 1
     }
 
-    val finalLists = await { finalListsFuture }
-    threadPool.shutdown()
+    var currentLists = FileMergeState.getCurrentFileLists.get
+    var round = FileMergeState.getRound
 
-    finalLists.flatten
+    while (currentLists.size > 1) {
+      println(s"[MergeSort] Starting merge round $round with ${currentLists.size} file lists")
+      
+      // Pair up file lists
+      val firstHalf = currentLists.take(currentLists.size / 2)
+      val secondHalf = currentLists.drop(currentLists.size / 2)
+      val listPairs = firstHalf.zip(secondHalf)
+      
+      // Handle remaining list if odd number
+      val remainingList = if (currentLists.size % 2 == 1) {
+        Some(currentLists.last)
+      } else {
+        None
+      }
+      
+      // Filter out completed pairs
+      val pendingPairs = listPairs.zipWithIndex.filterNot { case (_, index) => 
+        FileMergeState.isPairCompleted(index)
+      }
+      
+      val futures = pendingPairs.map { case ((list1, list2), index) =>
+        async {
+          val threadId = Thread.currentThread().getName
+          println(s"[MergeSort-Round$round][$threadId] Merging list pair $index: ${list1.size} files + ${list2.size} files")
+          val filePathList1 = FileManager.getFilePathFromOutputDirAll(list1)
+          val filePathList2 = FileManager.getFilePathFromOutputDirAll(list2)
+          val outputFiles = mergeFileLists(filePathList1, filePathList2, threadId, round)
+          
+          FileMergeState.markPairCompleted(index, outputFiles)
+          StateRestoreManager.storeState()
+
+          println(s"[MergeSort-Round$round][$threadId] Completed merge pair $index: ${outputFiles.size} output files")
+          (index, outputFiles)
+        }
+      }
+
+      await { Future.sequence(futures) }
+      
+      // Reconstruct results in order
+      val results = (0 until listPairs.size).map { i =>
+        FileMergeState.getCompletedPairResult(i)
+      }.toList
+      
+      val nextFileLists = new ConcurrentLinkedQueue[List[String]]()
+      results.foreach(nextFileLists.add)
+      
+      remainingList.foreach { list =>
+        nextFileLists.add(list.map { file =>
+          val oldFilePath = FileManager.getFilePathFromOutputDir(file)
+          val newFilename = FileManager.getRandomFilename
+          val newFilePath = FileManager.getFilePathFromOutputDir(newFilename)
+          FileManager.copy(oldFilePath, newFilePath)
+          newFilename
+        })
+      }
+      
+      val nextLists = nextFileLists.asScala.toList
+      
+      // Update state for next round
+      FileMergeState.setCurrentFileLists(nextLists)
+      FileMergeState.clearCompletedPairs()
+      FileMergeState.setRound(round + 1)
+      StateRestoreManager.storeState()
+      FileManager.deleteAll(currentLists.flatten.map(FileManager.getFilePathFromOutputDir))
+      
+      currentLists = nextLists
+      round += 1
+    }
+    
+    threadPool.shutdown()
+    currentLists.flatten
   }
 
   private class MultiFileIterator(files: List[String]) extends Iterator[Record] {
@@ -147,14 +183,12 @@ class FileMergeManager(inputSubDirName: String, outputSubDirName: String) {
    * ensures: output files are sorted in order
    */
   private def mergeFileLists(
-    list1: List[String],
-    list2: List[String],
+    filePathList1: List[String],
+    filePathList2: List[String],
     threadId: String,
     round: Int
   ): List[String] = {
     val comparator = getRecordOrdering
-    val filePathList1 = FileManager.getFilePathFromOutputDirAll(list1)
-    val filePathList2 = FileManager.getFilePathFromOutputDirAll(list2)
     
     // 1. Calculate average file size (in records)
     val allFiles = filePathList1 ++ filePathList2
@@ -208,9 +242,6 @@ class FileMergeManager(inputSubDirName: String, outputSubDirName: String) {
     }
     
     val result = mergeLoop(ArrayBuffer.empty, Nil)
-    
-    // Delete input files that were merged
-    FileManager.deleteAll(allFiles)
     
     println(s"[MergeSort-Round$round][$threadId] Merge complete: ${result.size} output files")
     result
