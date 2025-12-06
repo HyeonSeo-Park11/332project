@@ -7,6 +7,7 @@ import java.nio.ByteBuffer
 import scala.annotation.tailrec
 import scala.concurrent.{ExecutionContext, Future}
 import scala.async.Async.async
+import scala.util.Try
 
 import com.google.protobuf.ByteString
 
@@ -15,13 +16,21 @@ import common.data.Data.{Key, Record, getRecordOrdering, getKeyOrdering, RECORD_
 import utils.FileManager
 import utils.FileManager.{InputSubDir, OutputSubDir}
 
+import state.LabelingState
+import global.StateRestoreManager
+
 class LabelingManager(inputSubDirName: String, outputSubDirName: String, assignedRange: Map[(String, Int), (Key, Key)])(implicit ec: ExecutionContext) {
   implicit val inputSubDirNameImplicit: InputSubDir = InputSubDir(inputSubDirName)
   implicit val outputSubDirNameImplicit: OutputSubDir = OutputSubDir(outputSubDirName)
 
   def start(files: List[String]) = {
     FileManager.createDirectoryIfNotExists(FileManager.getFilePathFromOutputDir(""))
-    assignFilesToWorkers(files)
+    if (LabelingState.isCompleted) {
+      println("[Labeling] Already completed. Skipping...")
+      Future.successful(LabelingState.getAssignedFiles)
+    } else {
+      assignFilesToWorkers(files)
+    }
   }
 
   /**
@@ -79,7 +88,7 @@ class LabelingManager(inputSubDirName: String, outputSubDirName: String, assigne
             val newFilename = s"$from-$workerIp-$fileNum"
             val newFilePath = FileManager.getFilePathFromOutputDir(newFilename)
             
-            FileManager.move(filePath, newFilePath)
+            FileManager.copy(filePath, newFilePath)
             println(s"[FileAssignment]   ✓ Renamed entire file to: $newFilename")
             
             val newAssignments = assignments.updated(workerId, newFilename :: assignments.getOrElse(workerId, List.empty))
@@ -122,10 +131,7 @@ class LabelingManager(inputSubDirName: String, outputSubDirName: String, assigne
               val remainingStartKey = part2Records.head._1
               val remainingEndKey = part2Records.last._1
               println(s"[FileAssignment]   ✓ Created part2: $remainingFilename (${part2Records.length} records) - pushed to front")
-              
-              // Delete original file
-              FileManager.delete(filePath)
-              
+
               // Return remaining files with part2 prepended, and stop processing for this worker
               ((remainingFilename, remainingStartKey, remainingEndKey) :: restFiles, newAssignments)
               
@@ -151,6 +157,11 @@ class LabelingManager(inputSubDirName: String, outputSubDirName: String, assigne
       println(s"  $ip:$port -> ${files.size} files")
     }
     
+    LabelingState.setAssignedFiles(result)
+    LabelingState.setCompleted()
+    StateRestoreManager.storeState()
+    FileManager.deleteAll(files.map(FileManager.getFilePathFromInputDir))
+
     result
   }
   
