@@ -11,9 +11,9 @@ import scala.collection.mutable
 
 import common.data.Data.{getRecordOrdering, RECORD_SIZE}
 import global.StateRestoreManager
-import utils.{ThreadpoolUtils, FileManager}
-import utils.FileManager
-import utils.FileManager.OutputSubDir
+import utils.{ThreadpoolUtils}
+import global.FileManager
+import global.FileManager.OutputSubDir
 import state.MemorySortState
 
 class MemorySortManager(outputSubDirName: String) {
