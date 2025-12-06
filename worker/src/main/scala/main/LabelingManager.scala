@@ -27,7 +27,6 @@ class LabelingManager(inputSubDirName: String, outputSubDirName: String, assigne
   implicit val outputSubDirNameImplicit: OutputSubDir = OutputSubDir(outputSubDirName)
 
   def start(files: List[String]) = {
-    FileManager.createDirectoryIfNotExists(FileManager.getFilePathFromOutputDir(""))
     if (LabelingState.isCompleted) {
       logger.info("[Labeling] Already completed. Skipping...")
       Future.successful(LabelingState.getAssignedFiles)

@@ -31,7 +31,7 @@ object Main extends App {
     sys.exit(1)
   }
 
-  FileManager.createDirectoryIfNotExists(outputDir)
+  FileManager.createAllDirIfNotExists
 
   ConnectionManager.initMasterChannel(masterIp, masterPort)
   FileManager.setInputDirs(inputDirs)

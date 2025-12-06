@@ -179,6 +179,16 @@ object FileManager {
     filePaths.foreach { filename => Try { delete(filename) } }
   }
 
+  def createAllDirIfNotExists: Unit = {
+    outputDir.foreach { outDir => 
+      FileManager.createDirectoryIfNotExists(outDir)
+      outputSubDirNames.map(_.value).foreach { subDirName =>
+        val subDirPath = Paths.get(outDir, subDirName).toString()
+        FileManager.createDirectoryIfNotExists(subDirPath)
+      }
+    }
+  }
+
   def deleteAllIntermedia: Unit = {
     outputSubDirNames.map(_.value).foreach { subDirName =>
       outputDir.foreach { outDir =>

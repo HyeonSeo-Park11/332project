@@ -30,7 +30,6 @@ class FileMergeManager(inputSubDirName: String, outputSubDirName: String) {
   def start(files: List[List[String]], state: FileMergeState) = {
     // Local Merge와 Final Merge 두 개에서 이 Manager가 사용되기 떄문에 state를 인자로 받아야 한다.
     implicit val mergeState: FileMergeState = state
-    FileManager.createDirectoryIfNotExists(FileManager.getFilePathFromOutputDir(""))
     
     if (FileMergeState.getCurrentFileLists.isEmpty) {
       val filenames = files.map { fileList => {
