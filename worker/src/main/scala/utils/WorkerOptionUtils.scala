@@ -4,14 +4,20 @@ import scala.util.Try
 import scala.collection.mutable.ArrayBuffer
 import scopt.OParser
 import java.net.InetAddress
+import java.nio.file.Files
+import java.nio.file.Paths
+import org.slf4j.LoggerFactory
 
 case class WorkerConfig(
-  masterAddr: String = "",
+  masterIp: String = "",
+  masterPort: Int = 0,
   inputDirectories: Seq[String] = Seq.empty,
   outputDirectory: String = ""
 )
 
 object WorkerOptionUtils {
+  private val logger = LoggerFactory.getLogger(getClass)
+
   private def getParser: OParser[Unit, WorkerConfig] = {
     val builder = OParser.builder[WorkerConfig]
     val parser = {
@@ -21,7 +27,6 @@ object WorkerOptionUtils {
         head("worker", "1.0"),
         arg[String]("<master ip:port>")
           .required()
-          .action((x, c) => c.copy(masterAddr = x))
           .text("master address in format ip:port")
           .validate(x =>
             x.split(":") match {
@@ -32,6 +37,12 @@ object WorkerOptionUtils {
                 else failure("master address must be a valid ip/host and port (1-65535)")
               case _ =>
                 failure("master address must be in format ip:port")
+            }
+          )
+          .action((x, c) =>
+            x.split(":") match {
+              case Array(host, portStr) =>
+                c.copy(masterIp = host, masterPort = portStr.toInt)
             }
           ),
         opt[String]('I', "input")
@@ -92,10 +103,22 @@ object WorkerOptionUtils {
     }
   }
 
-  def parse(args: Array[String]): Option[(String, Seq[String], String)] = {
+  def parse(args: Array[String]): Option[(String, Int, Seq[String], String)] = {
     val processedArgs = preprocessInputDirectoriesArgs(args)
     OParser.parse(getParser, processedArgs, WorkerConfig()).map {
-      config => (config.masterAddr, config.inputDirectories, config.outputDirectory)
+      config => (config.masterIp, config.masterPort, config.inputDirectories, config.outputDirectory)
     }
+  }
+
+  def validateInputFiles(inputDirs: Seq[String]): Boolean = {
+    val invalidInputDirs = inputDirs.filter{ dir => !Files.exists(Paths.get(dir)) || !Files.isDirectory(Paths.get(dir)) }
+
+    if (invalidInputDirs.nonEmpty) {
+      invalidInputDirs.foreach { dir =>
+        logger.error(s"Input directory does not exist or is not a directory: $dir")
+      }
+    }
+
+    invalidInputDirs.isEmpty
   }
 }

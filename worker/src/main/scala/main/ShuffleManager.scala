@@ -8,13 +8,13 @@ import io.grpc.ManagedChannelBuilder
 import worker.WorkerService.{ShuffleServiceGrpc, DownloadRequest, DownloadResponse}
 import scala.async.Async.{async, await}
 import global.ConnectionManager
-import utils.FileManager
+import global.FileManager
 import io.grpc.stub.{StreamObserver, ClientCallStreamObserver, ClientResponseObserver}
 import java.nio.channels.FileChannel
 import common.utils.SystemUtils
 import global.GlobalLock
 import common.utils.RetryUtils.retry
-import utils.FileManager.{InputSubDir, OutputSubDir}
+import global.FileManager.{InputSubDir, OutputSubDir}
 import global.StateRestoreManager
 import scala.collection.mutable
 import state.ShuffleState
@@ -39,23 +39,22 @@ class ShuffleManager(inputSubDirName: String, outputSubDirName: String)(implicit
         }
 
         if (ShuffleState.isShuffleCompleted) {
-            logger.info("[StateRestore] Skip shuffle")
+            logger.info("Skip shuffle")
         } else {
             val shufflePlansToProcess: Seq[(String, Seq[String])] = shufflePlansWithCompleted.view
                 .mapValues(_.filter(_._2 == false).keys.toSeq).toSeq  // false인것만 seq of seq로 변환
 
             val skippedFileNum = shufflePlansWithCompleted.values.flatMap(_.keys).size - shufflePlansToProcess.flatMap(_._2).size
-            if (skippedFileNum != 0) logger.info(s"[StateRestore] Skip $skippedFileNum files at shuffle")
+            if (skippedFileNum != 0) logger.info(s"Skip $skippedFileNum files at shuffle")
 
-            val selfIp = SystemUtils.getLocalIp.get
-
-            FileManager.createDirectoryIfNotExists(FileManager.getFilePathFromOutputDir(""))
+            val selfIp = SystemUtils.getLocalIp
 
             val workerFutures = shufflePlansToProcess.map {
                 case (workerIp, fileList) if workerIp != selfIp => processFilesSequentially(workerIp, fileList)
                 case (workerIp, fileList) => Future.successful(copyLocalFiles(fileList))
             }
             await { Future.sequence(workerFutures) }
+            logger.info("shuffle completed")
 
             ShuffleState.completeShuffle()
             StateRestoreManager.storeState()
@@ -80,7 +79,6 @@ class ShuffleManager(inputSubDirName: String, outputSubDirName: String)(implicit
         fileList match {
             case Nil => ()
             case head :: tail => {
-                logger.info(s"Processing file [$workerIp, $head]")
                 await { retry { processFile(workerIp, head) } }
 
                 ShuffleState.completeShufflePlanFile(workerIp, head)

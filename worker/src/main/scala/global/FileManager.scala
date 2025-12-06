@@ -1,4 +1,4 @@
-package utils
+package global
 
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
@@ -179,6 +179,16 @@ object FileManager {
     filePaths.foreach { filename => Try { delete(filename) } }
   }
 
+  def createAllDirIfNotExists: Unit = {
+    outputDir.foreach { outDir => 
+      FileManager.createDirectoryIfNotExists(outDir)
+      outputSubDirNames.map(_.value).foreach { subDirName =>
+        val subDirPath = Paths.get(outDir, subDirName).toString()
+        FileManager.createDirectoryIfNotExists(subDirPath)
+      }
+    }
+  }
+
   def deleteAllIntermedia: Unit = {
     outputSubDirNames.map(_.value).foreach { subDirName =>
       outputDir.foreach { outDir =>
@@ -190,7 +200,7 @@ object FileManager {
               .forEach { path =>
                 Files.deleteIfExists(path)
               }
-            logger.info(s"[FileManager] Deleted sub-directory: $subDirPath")
+            logger.info(s"Deleted sub-directory: $subDirPath")
           } catch {
             case e: Exception =>
               logger.warn(s"Failed to delete sub-directory $subDirPath: ${e.getMessage}")
@@ -228,5 +238,7 @@ object FileManager {
         }.get
       }
     }.get
+
+    logger.info(s"Creating Output Completed - Final output file: $outputPath")
   }
 }

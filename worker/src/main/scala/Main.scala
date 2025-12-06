@@ -13,7 +13,7 @@ import global.ConnectionManager
 import server.{RegisterServiceImpl, SampleServiceImpl, ShuffleServiceImpl, SyncServiceImpl, TerminationServiceImpl}
 import main.{RegisterManager, SampleManager, MemorySortManager, FileMergeManager, LabelingManager, SynchronizationManager, ShuffleManager, TerminationManager}
 import utils.WorkerOptionUtils
-import utils.FileManager
+import global.FileManager
 import global.StateRestoreManager
 import scala.concurrent.Future
 import state.SampleState
@@ -23,33 +23,24 @@ object Main extends App {
   private val logger = LoggerFactory.getLogger(getClass)
   implicit val ec: ExecutionContext = ExecutionContext.global
 
-  val (masterAddr, inputDirs, outputDir) = WorkerOptionUtils.parse(args).getOrElse {
-    sys.exit(1)
-  }
-  
-  val (masterIp, masterPort) = {
-    val parts = masterAddr.split(":")
-    (parts(0), parts(1).toInt)
-  }
-
-  val invalidInputDirs = inputDirs.filter{ dir => !Files.exists(Paths.get(dir)) || !Files.isDirectory(Paths.get(dir)) }
-
-  if (invalidInputDirs.nonEmpty) {
-    invalidInputDirs.foreach { dir =>
-      logger.error(s"Input directory does not exist or is not a directory: $dir")
-    }
+  val (masterIp, masterPort, inputDirs, outputDir) = WorkerOptionUtils.parse(args).getOrElse {
     sys.exit(1)
   }
 
-  FileManager.createDirectoryIfNotExists(outputDir)
+  if (!WorkerOptionUtils.validateInputFiles(inputDirs)) {
+    sys.exit(1)
+  }
 
-  ConnectionManager.initMasterChannel(masterIp, masterPort)
   FileManager.setInputDirs(inputDirs)
   FileManager.setOutputDir(outputDir)
+
+  FileManager.createAllDirIfNotExists
 
   if (!StateRestoreManager.isClean()) {
     StateRestoreManager.restoreState()
   }
+
+  ConnectionManager.initMasterChannel(masterIp, masterPort)
 
   val server = ServerBuilder
     .forPort(0)
@@ -83,34 +74,20 @@ object Main extends App {
 
     val (_, sortedFiles) = await { masterFuture.zip(localFuture) }
 
-    val assignedRange = SampleState.getAssignedRange.getOrElse(throw new RuntimeException("Assigned range is not available"))
+    val assignedRange = SampleState.getAssignedRange.get
     ConnectionManager.initWorkerChannels(assignedRange.keys.toSeq)
+    
     val labeledFiles = await { new LabelingManager(FileManager.fileMergeDirName, FileManager.labelingDirName, assignedRange).start(sortedFiles) }
-
-    labeledFiles.foreach {
-      case (workerId, fileList) =>
-        val fileNames = fileList.mkString(", ")
-        logger.info(s"[Labeling][Assigned] ${workerId._1}:${workerId._2} files: [$fileNames]")
-    }
 
     val shufflePlans =  await { new SynchronizationManager(labeledFiles).start() }
 
-    shufflePlans.foreach {
-      case (workerIp, fileList) =>
-        val fileNames = fileList.mkString(", ")
-        logger.info(s"[Shuffle][Planned] $workerIp files: [$fileNames]")
-    }
-
     val completedShufflePlans = await { new ShuffleManager(FileManager.labelingDirName, FileManager.shuffleDirName).start(shufflePlans) }
-
-    logger.info(s"[Shuffle][Completed] files: [${completedShufflePlans.mkString(", ")}]")
 
     val finalFiles = await { new FileMergeManager(FileManager.shuffleDirName, FileManager.finalDirName).start(completedShufflePlans, WorkerState.shuffleMerge) }
     
     val selfIndex = assignedRange.keys.map(_._1).toList.sorted.indexOf(SystemUtils.getLocalIp.get)
     val selfOrder = selfIndex + 1
     FileManager.mergeAllFiles(s"$outputDir/partition.$selfOrder", finalFiles, FileManager.finalDirName)
-    logger.info(s"[Completed] Final output file: ${s"$outputDir/partition.$selfOrder"}")
 
     await { new TerminationManager().shutdownServerSafely(server) }
 

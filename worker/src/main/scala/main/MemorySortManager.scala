@@ -11,9 +11,9 @@ import scala.collection.mutable
 
 import common.data.Data.{getRecordOrdering, RECORD_SIZE}
 import global.StateRestoreManager
-import utils.{ThreadpoolUtils, FileManager}
-import utils.FileManager
-import utils.FileManager.OutputSubDir
+import utils.{ThreadpoolUtils}
+import global.FileManager
+import global.FileManager.OutputSubDir
 import state.MemorySortState
 
 class MemorySortManager(outputSubDirName: String) {
@@ -24,7 +24,6 @@ class MemorySortManager(outputSubDirName: String) {
   implicit val outputSubDir: OutputSubDir = OutputSubDir(outputSubDirName)
 
   def start = {
-    FileManager.createDirectoryIfNotExists(FileManager.getFilePathFromOutputDir(""))
     inMemorySort(ThreadpoolUtils.getChunkSize)
   }
 
@@ -36,17 +35,17 @@ class MemorySortManager(outputSubDirName: String) {
     // Collect all input files
     val allFiles = FileManager.getInputFilePaths
     
-    logger.info(s"[MergeSort] Found ${allFiles.size} input files to sort")
+    logger.info(s"Found ${allFiles.size} input files to sort")
     
     val threadCount = ThreadpoolUtils.getThreadCount
-    logger.info(s"[MergeSort] Using $threadCount threads for sorting (max concurrent files: ${ThreadpoolUtils.getMaxConcurrentFiles})")
+    logger.info(s"Using $threadCount threads for sorting (max concurrent files: ${ThreadpoolUtils.getMaxConcurrentFiles})")
     
     val sortedFiles = new ConcurrentLinkedQueue[String]()
     
     val futures = allFiles.map { filePath =>
       async {
         if (MemorySortState.isFileProcessed(filePath)) {
-          logger.info(s"[StateRestore] Skip sorting for $filePath")
+          logger.info(s"Skip sorting for $filePath")
           val outputs = MemorySortState.getProcessedFiles(filePath)
           outputs.foreach(sortedFiles.add)
         } else {
@@ -54,7 +53,7 @@ class MemorySortManager(outputSubDirName: String) {
           val fileSize = FileManager.getFilesize(filePath)
           val numRecords = fileSize / RECORD_SIZE
           
-          logger.info(s"[MergeSort-InMemory][$threadId] Processing file: $filePath (${numRecords} records)")
+          logger.info(s"[$threadId] Processing file: $filePath (${numRecords} records)")
           
           val generatedFiles = mutable.ListBuffer.empty[String]
 
@@ -65,22 +64,22 @@ class MemorySortManager(outputSubDirName: String) {
               val recordsToRead = Math.min(chunkSize, numRecords - offset).toInt
               val currentChunk = chunkCount + 1
               
-              logger.info(s"[MergeSort-InMemory][$threadId] Reading chunk $currentChunk: $recordsToRead records from offset $offset")
+              logger.info(s"[$threadId] Reading chunk $currentChunk: $recordsToRead records from offset $offset")
               val records = FileManager.readRecords(filePath, offset, recordsToRead)
               
-              logger.info(s"[MergeSort-InMemory][$threadId] Sorting chunk $currentChunk...")
+              logger.info(s"[$threadId] Sorting chunk $currentChunk...")
               implicit val ordering = getRecordOrdering
               val sortedRecords = records.sorted
               
               val outputFilename = FileManager.getRandomFilename
               val outputPath = FileManager.getFilePathFromOutputDir(outputFilename)
               FileManager.writeRecords(outputPath, sortedRecords)
-              logger.info(s"[MergeSort-InMemory][$threadId] Writing sorted chunk to: $outputFilename")
+              logger.info(s"[$threadId] Writing sorted chunk to: $outputFilename")
               generatedFiles += outputFilename
               
               processChunks(offset + recordsToRead, currentChunk)
             } else {
-              logger.info(s"[MergeSort-InMemory][$threadId] ✓ Completed file: $filePath ($chunkCount chunks)")
+              logger.info(s"[$threadId] ✓ Completed file: $filePath ($chunkCount chunks)")
             }
           }
           

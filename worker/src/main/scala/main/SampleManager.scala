@@ -25,7 +25,7 @@ import common.utils.SystemUtils
 import master.MasterService.{SamplingServiceGrpc, SampleData}
 import master.MasterService.SampleData
 import global.ConnectionManager
-import utils.FileManager
+import global.FileManager
 import global.StateRestoreManager
 import global.WorkerState
 import state.SampleState
@@ -39,13 +39,10 @@ class SampleManager(implicit ec: ExecutionContext) {
 
   def start(): Future[Unit] = async {
     if (SampleState.isSendSampleCompleted) {
-        logger.info("[StateRestore] Skip send sample")
+        logger.info("Skip send sample")
     }
     else {
-      val workerIp = SystemUtils.getLocalIp.getOrElse {
-          logger.error("Failed to get local IP address")
-        sys.exit(1)
-      }
+      val workerIp = SystemUtils.getLocalIp
 
       val samples = await { sampleFromInputs }
     
@@ -54,16 +51,9 @@ class SampleManager(implicit ec: ExecutionContext) {
         keys = samples
       )
 
-      val responseFuture = stub.sampling(request)
-      val success = await { responseFuture }.success
-    
-      if (success) {
-          logger.info("Samples sent successfully. Waiting for range assignment...")
-        SampleState.completeSendSample()
-        StateRestoreManager.storeState()
-      } else {
-          logger.error("Failed to send samples to master")
-      }
+      await { stub.sampling(request) }
+
+      logger.info("Samples sent successfully. Waiting for range assignment...")
     }
   }
 
