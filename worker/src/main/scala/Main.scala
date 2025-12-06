@@ -31,15 +31,16 @@ object Main extends App {
     sys.exit(1)
   }
 
-  FileManager.createAllDirIfNotExists
-
-  ConnectionManager.initMasterChannel(masterIp, masterPort)
   FileManager.setInputDirs(inputDirs)
   FileManager.setOutputDir(outputDir)
+
+  FileManager.createAllDirIfNotExists
 
   if (!StateRestoreManager.isClean()) {
     StateRestoreManager.restoreState()
   }
+
+  ConnectionManager.initMasterChannel(masterIp, masterPort)
 
   val server = ServerBuilder
     .forPort(0)
