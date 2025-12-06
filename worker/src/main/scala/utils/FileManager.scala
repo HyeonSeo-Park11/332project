@@ -176,7 +176,7 @@ object FileManager {
     filePaths.foreach { filename => Try { delete(filename) } }
   }
 
-  def deleteAllSubDir: Unit = {
+  def deleteAllIntermedia: Unit = {
     outputSubDirNames.map(_.value).foreach { subDirName =>
       outputDir.foreach { outDir =>
         val subDirPath = Paths.get(outDir, subDirName)
