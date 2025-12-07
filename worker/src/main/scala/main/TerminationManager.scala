@@ -17,6 +17,8 @@ class TerminationManager(implicit ec: ExecutionContext) {
 
   def shutdownServerSafely(server: Server): Future[Unit] = async {
     if(TerminationState.isTerminated) {
+      // If fault occured right before returning TerminateACK in TerminationServiceImpl,
+      // Worker should wait for a seconds before turning off to allow the master to exit retry.
       logger.info("Termination already marked. Skipping final merge report to master.")
       Thread.sleep(30000)
     } else {
