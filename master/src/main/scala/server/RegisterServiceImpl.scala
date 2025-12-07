@@ -20,7 +20,8 @@ class RegisterServiceImpl(implicit ec: ExecutionContext) extends MasterService.R
     }
     else {
       ConnectionManager.registerWorkerChannel(request.ip, request.port)
-      if (faultOccured) {
+      // Without second condition, revived worker tries to re-register toward terminated worker whose server is closed.
+      if (faultOccured && !MasterState.isTerminated) {
         MasterState.getRegisteredWorkers.filter(_._1 != request.ip).map { case (workerIp, _) => async {
             val stub = WorkerService.RegisterServiceGrpc.stub(ConnectionManager.getWorkerChannel(workerIp))
             await { stub.introduceNewWorker(new WorkerNetworkInfo(request.ip, request.port)) }

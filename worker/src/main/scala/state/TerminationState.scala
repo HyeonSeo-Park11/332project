@@ -13,5 +13,9 @@ class TerminationState extends Serializable with Restorable {
 
 object TerminationState {
   def waitForTerminate: Future[Unit] = WorkerState.terminate.terminatePromise.future
-  def markTerminated(): Unit = WorkerState.terminate.terminatePromise.trySuccess()
+
+  def markTerminated(): Unit =  {
+    WorkerState.synchronized{ WorkerState.terminate.terminated = true }
+    WorkerState.terminate.terminatePromise.trySuccess(())
+  }
 }
