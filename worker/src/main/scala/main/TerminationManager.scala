@@ -16,8 +16,13 @@ class TerminationManager(implicit ec: ExecutionContext) {
   private val masterStub = FinalMergeServiceGrpc.stub(ConnectionManager.getMasterChannel())
 
   def shutdownServerSafely(server: Server): Future[Unit] = async {
-    val request = FinalMergePhaseReport(workerIp = SystemUtils.getLocalIp)
-    await { masterStub.reportFinalMergeCompletion(request) }
+    if(TerminationState.isTerminated) {
+      logger.info("Termination already marked. Skipping final merge report to master.")
+      Thread.sleep(30000)
+    } else {
+      val request = FinalMergePhaseReport(workerIp = SystemUtils.getLocalIp)
+      await { masterStub.reportFinalMergeCompletion(request) }
+    }
     await { TerminationState.waitForTerminate }
 
     ConnectionManager.shutdownAllChannels()

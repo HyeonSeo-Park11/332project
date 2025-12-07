@@ -6,7 +6,7 @@ import scala.concurrent.{Future, blocking, ExecutionContext}
 object RetryUtils {
   private val logger = LoggerFactory.getLogger(getClass)
   
-  val maxTries = 10
+  val maxTries = 7
   
   def retry[T](operation: => Future[T], tries: Int = 1)(implicit ec: ExecutionContext): Future[T] = {
     operation.recoverWith {
