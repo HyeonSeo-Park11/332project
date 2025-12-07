@@ -5,6 +5,8 @@ import scala.concurrent.{ExecutionContext, Future}
 import master.MasterService.{FinalMergePhaseReport, FinalMergePhaseAck, FinalMergeServiceGrpc}
 import global.{MasterState, ConnectionManager}
 import worker.WorkerService.{TerminationServiceGrpc, TerminateCommand}
+import common.utils.RetryUtils.retry
+import scala.async.Async.{async, await}
 
 class FinalMergeServiceImpl(implicit ec: ExecutionContext) extends FinalMergeServiceGrpc.FinalMergeService {
   private val logger = LoggerFactory.getLogger(getClass)
@@ -21,18 +23,20 @@ class FinalMergeServiceImpl(implicit ec: ExecutionContext) extends FinalMergeSer
   }
 
   private def terminateWorkers(): Future[Unit] = {
-    assert(!MasterState.isTerminated, "Termination should not double triggered without fault tolerance")
+    if (MasterState.isTerminated) return Future.successful(())
 
     MasterState.markTerminated()
     logger.info("All workers reported final merge completion. Triggering termination phase...")
 
     val workers = MasterState.getRegisteredWorkers
     val terminateFutures = workers.map { case (ip, info) =>
-      val stub = TerminationServiceGrpc.stub(ConnectionManager.getWorkerChannel(ip))
-      val request = TerminateCommand(reason = "")
-      stub.terminate(request).map(_ => ()).recover {
-        case e: Exception => 
-          logger.error(s"Failed to send terminate command to worker $ip:${info.port}: ${e.getMessage}")
+      retry {
+        async {
+          val stub = TerminationServiceGrpc.stub(ConnectionManager.getWorkerChannel(ip))
+          val request = TerminateCommand(reason = "")
+          await { stub.terminate(request) }
+          logger.info(s"Termination acknowledged by worker $ip:${info.port}")
+        }
       }
     }
 
