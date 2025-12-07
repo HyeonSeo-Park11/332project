@@ -189,3 +189,40 @@
 - JongWon Lee : fault tolerance on disk based merge sort
 - HyeonSeo Park : fault tolerance on sync phase
 - MinWoo Kim : implement state restoration infra, fault tolerance on shuffle phase
+
+## Week8 Progress Report
+
+**Progress in the week** 
+
+- implement fault tolerance
+  - https://github.com/kmw14641/332project/pull/39 @MinWoo Kim
+    - infrastructure of fault tolerance (serialize, retry)
+    - shuffle, sampling, sync phase
+    - introduce new worker to other workers
+  - https://github.com/kmw14641/332project/pull/41 @JongWon Lee
+    - memory sort, merge, labeling phase
+  - https://github.com/kmw14641/332project/pull/47 @HyeonSeo Park
+    - termination phase
+- modularize server code (WorkerService -> ShuffleService, SamplingService, ...)
+  - master: https://github.com/kmw14641/332project/pull/37 @HyeonSeo Park
+  - worker: https://github.com/kmw14641/332project/pull/43 @MinWoo Kim
+- managing intermediate files & directories
+  - https://github.com/kmw14641/332project/pull/38 @JongWon Lee
+- setting logger to meet shell output requirement
+  - https://github.com/kmw14641/332project/pull/42 @MinWoo Kim
+- minor refactorings
+  - https://github.com/kmw14641/332project/pull/44 @MinWoo Kim
+- test correctness distributed sorting by test code
+  - https://github.com/kmw14641/332project/pull/48 @JongWon Lee
+- manual tests for fault tolerance on local & server environment
+- optimization - increase buffer size on read/write record
+  - https://github.com/kmw14641/332project/pull/49 @JongWon Lee
+- write readme to guide how to build @Hyeonseo Park
+- prepare final presentation material @MinWoo Kim
+- We met all requirements in this project! Congratulations!
+
+**Goal of the next week:**
+
+**Goal of the next week for each individual member:**
+
+We don't have next week! Project finally all completed. Presentation preparation will be remained for some time.
